@@ -3,7 +3,6 @@
 **By Alexander 'xaitax' Hagenah**
 
 *Initial release: January 11, 2026*
-
 *Updated: January 25, 2026 - Added Brave 144 analysis, comprehensive browser comparison table*
 
 Remember when bypassing Chrome's App-Bound Encryption (ABE) felt like you had finally cracked the code? Well, the Chromium team has been busy. Starting with Chrome 144, a new player enters the scene: `IElevator2`. The existing `IElevator` interface isn't going anywhere, but there's now a v2 sibling sitting alongside it - and the commit message is refreshingly candid about why.
@@ -396,25 +395,28 @@ With all three major Chromium browsers now on version 144, here's a comprehensiv
 
 | Interface Family | Chrome | Edge | Brave |
 |-----------------|:------:|:----:|:-----:|
-| `IElevator` (base) | Y | Y | Y (different IID) |
-| `IElevator2` (base) | Y | Y | Y |
-| `IElevatorChromium` | Y | - | Y (different IID) |
-| `IElevatorChrome` | Y | - | Y (different IID) |
-| `IElevatorChromeBeta` | Y | - | Y (different IID) |
-| `IElevatorChromeDev` | Y | - | Y (different IID) |
-| `IElevatorChromeCanary` | Y | - | Y (different IID) |
-| `IElevator2Chromium` | Y | - | Y |
-| `IElevator2Chrome` | Y | - | Y |
-| `IElevator2ChromeBeta` | Y | - | Y |
-| `IElevator2ChromeDev` | Y | - | Y |
-| `IElevator2ChromeCanary` | Y | - | Y |
-| `IElevatorUnbranded` | - | Y | - |
-| `IElevatorEdge` | - | Y | - |
-| `IElevatorEdgeBeta` | - | Y | - |
-| `IElevatorEdgeDev` | - | Y | - |
-| `IElevatorEdgeCanary` | - | Y | - |
-| `IElevatorEdgeInternal` | - | Y | - |
-| `IElevatorDevelopment` | - | - | Y |
+| `IElevator` (base) | ✅ | ✅ | ⚠️ different IID |
+| `IElevator2` (base) | ✅ | ✅ | ✅ |
+| `IElevatorChromium` | ✅ | ❌ | ⚠️ different IID |
+| `IElevatorChrome` | ✅ | ❌ | ⚠️ different IID |
+| `IElevatorChromeBeta` | ✅ | ❌ | ⚠️ different IID |
+| `IElevatorChromeDev` | ✅ | ❌ | ⚠️ different IID |
+| `IElevatorChromeCanary` | ✅ | ❌ | ⚠️ different IID |
+| `IElevator2Chromium` | ✅ | ❌ | ✅ |
+| `IElevator2Chrome` | ✅ | ❌ | ✅ |
+| `IElevator2ChromeBeta` | ✅ | ❌ | ✅ |
+| `IElevator2ChromeDev` | ✅ | ❌ | ✅ |
+| `IElevator2ChromeCanary` | ✅ | ❌ | ✅ |
+| `IElevatorUnbranded` | ❌ | ✅ | ❌ |
+| `IElevatorEdge` | ❌ | ✅ | ❌ |
+| `IElevatorEdgeBeta` | ❌ | ✅ | ❌ |
+| `IElevatorEdgeDev` | ❌ | ✅ | ❌ |
+| `IElevatorEdgeCanary` | ❌ | ✅ | ❌ |
+| `IElevatorEdgeInternal` | ❌ | ✅ | ❌ |
+| `IElevatorCopilot` | ❌ | ✅ | ❌ |
+| `IElevatorCopilotDev` | ❌ | ✅ | ❌ |
+| `IElevatorCopilotInternal` | ❌ | ✅ | ❌ |
+| `IElevatorDevelopment` | ❌ | ❌ | ✅ |
 
 ## Conclusion
 
