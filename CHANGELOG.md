@@ -2,7 +2,12 @@
 
 ## 🆕 Changelog
 
-### v0.18.2
+### v0.19.0
+
+* **C2 Framework Compatibility (Embedded Payload)**: Replaced Windows PE resource loading with compile-time embedded payload for enhanced compatibility with C2 frameworks and reflective loaders.
+  * The encrypted payload DLL is now embedded as a `constexpr` byte array in a generated C++ header (`payload_data.hpp`).
+  * Eliminates dependency on `FindResource`/`LoadResource` Win32 APIs, which require a Windows-registered module handle unavailable in BOF (COFF format), reflective loading, and shellcode contexts.
+  * Enables direct memory access to payload data without PE resource parsing.
 
 * **Bug Fix: Profile Processing Crash**: Fixed a crash that occurred during profile enumeration on certain systems.
   * Removed the non-essential folder size calculation to eliminate this crash vector entirely.
