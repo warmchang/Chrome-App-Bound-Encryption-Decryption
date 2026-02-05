@@ -16,7 +16,7 @@ namespace Payload {
 
     class FingerprintExtractor {
     public:
-        FingerprintExtractor(PipeClient& pipe, const BrowserConfig& browser, 
+        FingerprintExtractor(PipeClient& pipe, const BrowserConfig& browser,
                              const std::filesystem::path& outputBase)
             : m_pipe(pipe), m_browser(browser), m_outputBase(outputBase) {}
 

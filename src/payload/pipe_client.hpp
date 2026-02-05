@@ -14,11 +14,11 @@ namespace Payload {
         ~PipeClient();
 
         bool IsValid() const { return m_hPipe != INVALID_HANDLE_VALUE; }
-        
+
         void Log(const std::string& msg);
         void LogDebug(const std::string& msg);
         void LogData(const std::string& key, const std::string& value);
-        
+
         struct Config {
             bool verbose;
             bool fingerprint;

