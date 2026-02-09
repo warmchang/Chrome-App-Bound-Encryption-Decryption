@@ -10,6 +10,7 @@ import io
 import json
 import logging
 import os
+import re
 import sys
 import time
 from dataclasses import dataclass, field
@@ -141,14 +142,52 @@ BROWSER_SERVICES = {
     "edge": ["MicrosoftEdgeElevationService", "MicrosoftEdgeCanaryElevationService",
              "MicrosoftEdgeBetaElevationService", "MicrosoftEdgeDevElevationService"],
     "brave": ["BraveElevationService", "BraveBetaElevationService", "BraveNightlyElevationService"],
+    "avast": ["AvastSecureBrowserElevationService"],
 }
 
-# Known interface IIDs for primary detection
+# Known interface IIDs for primary detection (v1 and v2 where applicable)
+# Note: These are the IIDs that have proper TypeLib registration for COM marshaling
 KNOWN_PRIMARY_IIDS = {
-    "chrome": "{463ABECF-410D-407F-8AF5-0DF35A005CC8}",
-    "edge": "{C9C2B807-7731-4F34-81B7-44FF7779522B}",
-    "brave": "{F396861E-0C8E-4C71-8256-2FAE6D759CE9}",
+    "chrome": ["{463ABECF-410D-407F-8AF5-0DF35A005CC8}"],
+    "edge": ["{C9C2B807-7731-4F34-81B7-44FF7779522B}",
+             "{8F7B6792-784D-4047-845D-1782EFBEF205}"],   # IElevatorEdge (v1), IElevator2Edge (v2)
+    "brave": ["{F396861E-0C8E-4C71-8256-2FAE6D759CE9}",
+              "{1BF5208B-295F-4992-B5F4-3A9BB6494838}"],   # IElevatorChrome (v1), IElevator2Chrome (v2)
+    # Avast uses IElevatorChrome IID (base IElevator has broken TypeLib registration)
+    "avast": ["{7737BB9F-BAC1-4C71-A696-7C82D7994B6F}"],
 }
+
+VERSION = "2.2.0"
+
+# Unified VT type code -> C++ type name mapping (used by get_vt_name and resolve_type_deep)
+# Lazy-initialized on first access since comtypes.automation constants
+# aren't available until after the comtypes import above
+_VT_TYPE_MAP = None
+
+def _get_vt_type_map():
+    global _VT_TYPE_MAP
+    if _VT_TYPE_MAP is None:
+        vt = comtypes.automation
+        _VT_TYPE_MAP = {
+            vt.VT_EMPTY: "void", vt.VT_NULL: "void*",
+            vt.VT_I2: "SHORT", vt.VT_I4: "LONG",
+            vt.VT_R4: "FLOAT", vt.VT_R8: "DOUBLE",
+            vt.VT_CY: "CURRENCY", vt.VT_DATE: "DATE",
+            vt.VT_BSTR: "BSTR", vt.VT_DISPATCH: "IDispatch*",
+            vt.VT_ERROR: "SCODE", vt.VT_BOOL: "VARIANT_BOOL",
+            vt.VT_VARIANT: "VARIANT", vt.VT_UNKNOWN: "IUnknown*",
+            vt.VT_DECIMAL: "DECIMAL", vt.VT_UI1: "BYTE",
+            vt.VT_I1: "CHAR", vt.VT_UI2: "USHORT",
+            vt.VT_UI4: "ULONG", vt.VT_I8: "LONGLONG",
+            vt.VT_UI8: "ULONGLONG", vt.VT_INT: "INT",
+            vt.VT_UINT: "UINT", vt.VT_VOID: "void",
+            vt.VT_HRESULT: "HRESULT", vt.VT_PTR: "void*",
+            vt.VT_SAFEARRAY: "SAFEARRAY", vt.VT_CARRAY: "CARRAY",
+            vt.VT_USERDEFINED: "USER_DEFINED",
+            vt.VT_LPSTR: "LPSTR", vt.VT_LPWSTR: "LPWSTR",
+            64: "FILETIME", 65: "BLOB",
+        }
+    return _VT_TYPE_MAP
 
 
 # =============================================================================
@@ -169,8 +208,7 @@ class MethodDetail:
 class InterfaceInfo:
     name: str
     iid: str
-    type_info_obj: Any
-    type_attr_obj: Any
+    num_funcs: int = 0
     methods_defined: List[MethodDetail] = field(default_factory=list)
     base_interface_name: Optional[str] = None
 
@@ -380,25 +418,7 @@ def clean_executable_path(raw_path: str) -> str:
 
 def get_vt_name(vt_code: int, type_info_context=None, hreftype_or_tdesc=None) -> str:
     """Convert VARIANT type code to C++ type name."""
-    VT_MAP = {
-        comtypes.automation.VT_EMPTY: "void", comtypes.automation.VT_NULL: "void*",
-        comtypes.automation.VT_I2: "SHORT", comtypes.automation.VT_I4: "LONG",
-        comtypes.automation.VT_R4: "FLOAT", comtypes.automation.VT_R8: "DOUBLE",
-        comtypes.automation.VT_CY: "CURRENCY", comtypes.automation.VT_DATE: "DATE",
-        comtypes.automation.VT_BSTR: "BSTR", comtypes.automation.VT_DISPATCH: "IDispatch*",
-        comtypes.automation.VT_ERROR: "SCODE", comtypes.automation.VT_BOOL: "VARIANT_BOOL",
-        comtypes.automation.VT_VARIANT: "VARIANT", comtypes.automation.VT_UNKNOWN: "IUnknown*",
-        comtypes.automation.VT_DECIMAL: "DECIMAL", comtypes.automation.VT_UI1: "BYTE",
-        comtypes.automation.VT_I1: "CHAR", comtypes.automation.VT_UI2: "USHORT",
-        comtypes.automation.VT_UI4: "ULONG", comtypes.automation.VT_I8: "hyper",
-        comtypes.automation.VT_UI8: "uhyper", comtypes.automation.VT_INT: "INT",
-        comtypes.automation.VT_UINT: "UINT", comtypes.automation.VT_VOID: "void",
-        comtypes.automation.VT_HRESULT: "HRESULT", comtypes.automation.VT_PTR: "void*",
-        comtypes.automation.VT_SAFEARRAY: "SAFEARRAY", comtypes.automation.VT_CARRAY: "CARRAY",
-        comtypes.automation.VT_USERDEFINED: "USER_DEFINED",
-        comtypes.automation.VT_LPSTR: "LPSTR", comtypes.automation.VT_LPWSTR: "LPWSTR",
-        64: "FILETIME", 65: "BLOB",
-    }
+    VT_MAP = _get_vt_type_map()
 
     is_byref = bool(vt_code & comtypes.automation.VT_BYREF)
     is_array = bool(vt_code & comtypes.automation.VT_ARRAY)
@@ -468,20 +488,7 @@ def resolve_type_deep(type_info_context, tdesc, history: set = None, depth: int 
     base_vt = vt & ~(comtypes.automation.VT_BYREF | comtypes.automation.VT_ARRAY |
                      comtypes.automation.VT_VECTOR)
 
-    # Basic type mapping
-    VT_MAP = {
-        comtypes.automation.VT_EMPTY: "void", comtypes.automation.VT_NULL: "void*",
-        comtypes.automation.VT_I2: "SHORT", comtypes.automation.VT_I4: "LONG",
-        comtypes.automation.VT_R4: "FLOAT", comtypes.automation.VT_R8: "DOUBLE",
-        comtypes.automation.VT_BSTR: "BSTR", comtypes.automation.VT_DISPATCH: "IDispatch*",
-        comtypes.automation.VT_BOOL: "VARIANT_BOOL", comtypes.automation.VT_UNKNOWN: "IUnknown*",
-        comtypes.automation.VT_UI1: "BYTE", comtypes.automation.VT_I1: "CHAR",
-        comtypes.automation.VT_UI2: "USHORT", comtypes.automation.VT_UI4: "ULONG",
-        comtypes.automation.VT_I8: "LONGLONG", comtypes.automation.VT_UI8: "ULONGLONG",
-        comtypes.automation.VT_INT: "INT", comtypes.automation.VT_UINT: "UINT",
-        comtypes.automation.VT_VOID: "void", comtypes.automation.VT_HRESULT: "HRESULT",
-        comtypes.automation.VT_LPSTR: "LPSTR", comtypes.automation.VT_LPWSTR: "LPWSTR",
-    }
+    VT_MAP = _get_vt_type_map()
 
     # Handle pointer types
     if base_vt == comtypes.automation.VT_PTR:
@@ -546,10 +553,11 @@ def resolve_type_deep(type_info_context, tdesc, history: set = None, depth: int 
 
             # TKIND_ALIAS = typedef
             elif type_kind == comtypes.typeinfo.TKIND_ALIAS:
-                # Resolve the aliased type
-                aliased = ref_attr.tdescAlias
+                # Resolve the aliased type - must recurse BEFORE releasing ref_attr
+                # because tdescAlias points into the ref_attr buffer
+                result = resolve_type_deep(ref_ti, ref_attr.tdescAlias, history_copy, depth + 1)
                 ref_ti.ReleaseTypeAttr(ref_attr)
-                return resolve_type_deep(ref_ti, aliased, history_copy, depth + 1)
+                return result
 
             # Other kinds - just return the name
             ref_ti.ReleaseTypeAttr(ref_attr)
@@ -581,6 +589,17 @@ def format_guid_for_cpp(guid_str: Optional[str]) -> str:
         return ZERO_GUID
 
 
+def parse_pe_mitigations(dll_characteristics: int) -> Dict[str, bool]:
+    """Parse PE DllCharacteristics bitmask into security mitigation flags."""
+    return {
+        "aslr": bool(dll_characteristics & 0x0040),
+        "high_entropy_aslr": bool(dll_characteristics & 0x0020),
+        "dep": bool(dll_characteristics & 0x0100),
+        "cfg": bool(dll_characteristics & 0x4000),
+        "guard_rf": bool(dll_characteristics & 0x00020000),
+    }
+
+
 def decode_sddl(sd_bytes: bytes) -> Optional[str]:
     """Convert binary security descriptor to SDDL string."""
     try:
@@ -599,75 +618,119 @@ def decode_sddl(sd_bytes: bytes) -> Optional[str]:
     return None
 
 
-def analyze_sddl_dangers(sddl: str) -> Tuple[bool, List[str]]:
+# SDDL analysis constants
+_ACE_PATTERN = re.compile(r'\(([AD]);([^;]*);([^;]*);([^;]*);([^;]*);([^)]+)\)')
+
+DANGEROUS_TRUSTEES_COM = {
+    "WD": "Everyone",
+    "AU": "Authenticated Users",
+    "BU": "Built-in Users",
+    "AN": "Anonymous",
+    "WR": "Write Restricted",
+    "AC": "All Application Packages",
+    "S-1-1-0": "Everyone (SID)",
+    "S-1-5-7": "Anonymous (SID)",
+    "S-1-5-11": "Authenticated Users (SID)",
+    "S-1-5-32-545": "Users (SID)",
+    "S-1-15-2-1": "All App Packages (SID)",
+}
+
+DANGEROUS_TRUSTEES_SERVICE = {
+    "WD": "Everyone",
+    "AU": "Authenticated Users",
+    "BU": "Built-in Users",
+    "IU": "Interactive Users",
+    "NU": "Network Users",
+    "AN": "Anonymous",
+}
+
+DANGEROUS_RIGHTS_COM = {
+    "GA": "Generic All",
+    "GW": "Generic Write",
+    "GX": "Generic Execute",
+    "WD": "Write DAC",
+    "WO": "Write Owner",
+    "CC": "Create Child",
+    "DC": "Delete Child",
+    "LC": "List Children",
+    "SW": "Self Write",
+    "RP": "Read Property",
+    "WP": "Write Property",
+    "DT": "Delete Tree",
+    "LO": "List Object",
+    "CR": "Control Access",
+    "FA": "File All Access",
+    "FW": "File Write",
+    "FX": "File Execute",
+}
+
+DANGEROUS_RIGHTS_SERVICE = {
+    "DC": "SERVICE_CHANGE_CONFIG",
+    "RP": "SERVICE_START",
+    "WP": "SERVICE_STOP",
+    "SD": "DELETE",
+    "WD": "WRITE_DAC",
+    "WO": "WRITE_OWNER",
+    "GA": "GENERIC_ALL",
+    "GW": "GENERIC_WRITE",
+}
+
+SERVICE_HEX_MASKS = {
+    0x0002: "SERVICE_CHANGE_CONFIG",
+    0x0010: "SERVICE_START",
+    0x0020: "SERVICE_STOP",
+    0x00040000: "WRITE_DAC",
+    0x00080000: "WRITE_OWNER",
+    0x10000000: "GENERIC_ALL",
+}
+
+
+def analyze_sddl_permissions(sddl: str, trustees: Dict[str, str],
+                              rights: Dict[str, str],
+                              hex_masks: Optional[Dict[int, str]] = None) -> Tuple[bool, List[str]]:
     """
-    Analyze SDDL string for dangerous ACEs.
+    Analyze SDDL string for dangerous ACEs against given trustees and rights.
     Returns (is_dangerous, list of warning messages).
     """
     if not sddl:
         return False, []
 
     warnings = []
-    # Dangerous trustee SIDs in SDDL notation
-    DANGEROUS_TRUSTEES = {
-        "WD": "Everyone",
-        "AU": "Authenticated Users",
-        "BU": "Built-in Users",
-        "AN": "Anonymous",
-        "WR": "Write Restricted",
-        "AC": "All Application Packages",
-        "S-1-1-0": "Everyone (SID)",
-        "S-1-5-7": "Anonymous (SID)",
-        "S-1-5-11": "Authenticated Users (SID)",
-        "S-1-5-32-545": "Users (SID)",
-        "S-1-15-2-1": "All App Packages (SID)",
-    }
-
-    # Dangerous rights for COM
-    DANGEROUS_RIGHTS = {
-        "GA": "Generic All",
-        "GW": "Generic Write",
-        "GX": "Generic Execute",
-        "WD": "Write DAC",
-        "WO": "Write Owner",
-        "CC": "Create Child",
-        "DC": "Delete Child",
-        "LC": "List Children",
-        "SW": "Self Write",
-        "RP": "Read Property",
-        "WP": "Write Property",
-        "DT": "Delete Tree",
-        "LO": "List Object",
-        "CR": "Control Access",
-        "FA": "File All Access",
-        "FW": "File Write",
-        "FX": "File Execute",
-    }
-
-    # Parse DACL section - look for (A;...;rights;;;trustee) patterns
-    import re
-    # ACE format: (ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid)
-    ace_pattern = r'\(([AD]);([^;]*);([^;]*);([^;]*);([^;]*);([^)]+)\)'
-
-    for match in re.finditer(ace_pattern, sddl):
-        ace_type, ace_flags, rights, obj_guid, inherit_guid, trustee = match.groups()
-        if ace_type != 'A':  # Only check Allow ACEs
+    for match in _ACE_PATTERN.finditer(sddl):
+        ace_type, ace_flags, ace_rights, obj_guid, inherit_guid, trustee = match.groups()
+        if ace_type != 'A':
             continue
 
         trustee_upper = trustee.upper()
-        if trustee_upper in DANGEROUS_TRUSTEES:
-            trustee_name = DANGEROUS_TRUSTEES[trustee_upper]
-            # Check what rights are granted
-            granted_dangerous = []
-            for right_code, right_name in DANGEROUS_RIGHTS.items():
-                if right_code in rights.upper():
-                    granted_dangerous.append(right_name)
+        if trustee_upper not in trustees:
+            continue
 
-            if granted_dangerous:
-                warnings.append(
-                    f"{trustee_name} has: {', '.join(granted_dangerous)}")
+        trustee_name = trustees[trustee_upper]
+        granted = []
+        rights_upper = ace_rights.upper()
+        for code, desc in rights.items():
+            if code in rights_upper:
+                granted.append(desc)
+
+        if hex_masks and "0x" in ace_rights.lower():
+            try:
+                hex_val = int(ace_rights, 16)
+                for mask, desc in hex_masks.items():
+                    if hex_val & mask:
+                        granted.append(desc)
+            except ValueError:
+                pass
+
+        if granted:
+            warnings.append(
+                f"{trustee_name} has: {', '.join(set(granted))}")
 
     return len(warnings) > 0, warnings
+
+
+def analyze_sddl_dangers(sddl: str) -> Tuple[bool, List[str]]:
+    """Analyze SDDL string for dangerous COM ACEs."""
+    return analyze_sddl_permissions(sddl, DANGEROUS_TRUSTEES_COM, DANGEROUS_RIGHTS_COM)
 
 
 def verify_pe_signature(file_path: str) -> Tuple[bool, bool, Optional[str], Optional[str]]:
@@ -873,15 +936,11 @@ def analyze_proxy_dll_security(dll_path: str, main_signer: Optional[str] = None)
             pe = pefile.PE(expanded_path, fast_load=True)
 
             if hasattr(pe, 'OPTIONAL_HEADER'):
-                dll_char = pe.OPTIONAL_HEADER.DllCharacteristics
-                # IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
-                result.aslr = bool(dll_char & 0x0040)
-                # IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA
-                result.high_entropy_aslr = bool(dll_char & 0x0020)
-                # IMAGE_DLLCHARACTERISTICS_NX_COMPAT
-                result.dep = bool(dll_char & 0x0100)
-                # IMAGE_DLLCHARACTERISTICS_GUARD_CF
-                result.cfg = bool(dll_char & 0x4000)
+                m = parse_pe_mitigations(pe.OPTIONAL_HEADER.DllCharacteristics)
+                result.aslr = m["aslr"]
+                result.high_entropy_aslr = m["high_entropy_aslr"]
+                result.dep = m["dep"]
+                result.cfg = m["cfg"]
 
             pe.close()
         except Exception as e:
@@ -933,6 +992,7 @@ class ComInterfaceAnalyzer:
         self.coclasses: List[CoclassInfo] = []
         self.proxy_stub_cache: Dict[str, ProxyStubInfo] = {}
         self.security_cache: Dict[str, ComSecurityInfo] = {}
+        self._iface_cache: Dict[str, InterfaceInfo] = {}  # IID -> parsed InterfaceInfo
         # Default to empty object to prevent None access
         self.pe_info: PeTypelibInfo = PeTypelibInfo()
         self.service_security: Optional[ServiceSecurityInfo] = None
@@ -1069,6 +1129,8 @@ class ComInterfaceAnalyzer:
                 info.browser_vendor = "Edge"
             elif "brave" in name_lower:
                 info.browser_vendor = "Brave"
+            elif "avastsecure" in name_lower or "avast" in name_lower:
+                info.browser_vendor = "Avast"
             elif "vivaldi" in name_lower:
                 info.browser_vendor = "Vivaldi"
             elif "opera" in name_lower:
@@ -1260,94 +1322,9 @@ class ComInterfaceAnalyzer:
 
     def _analyze_service_dacl(self, sddl: str) -> Tuple[bool, List[str]]:
         """Analyze service DACL for weak permissions."""
-        if not sddl:
-            return False, []
-
-        warnings = []
-        import re
-
-        # Dangerous trustees for services (low-privilege principals)
-        DANGEROUS_TRUSTEES = {
-            "WD": "Everyone",
-            "AU": "Authenticated Users",
-            "BU": "Built-in Users",
-            "IU": "Interactive Users",
-            "NU": "Network Users",
-            "AN": "Anonymous",
-        }
-
-        # Service-specific SDDL rights mapping (from Windows SDK sddl.h)
-        # These are the DANGEROUS rights that allow modification:
-        # DC = SERVICE_CHANGE_CONFIG (0x0002) - can modify service binary path!
-        # RP = SERVICE_START (0x0010)
-        # WP = SERVICE_STOP (0x0020)
-        # WD = WRITE_DAC (0x40000)
-        # WO = WRITE_OWNER (0x80000)
-        # GA = GENERIC_ALL
-        # GW = GENERIC_WRITE
-        #
-        # Safe/read-only rights (not dangerous):
-        # CC = SERVICE_QUERY_CONFIG (0x0001)
-        # LC = SERVICE_QUERY_STATUS (0x0004)
-        # SW = SERVICE_ENUMERATE_DEPENDENTS (0x0008)
-        # LO = SERVICE_INTERROGATE (0x0080)
-        # CR = SERVICE_USER_DEFINED_CONTROL (0x0100)
-        # RC = READ_CONTROL
-
-        DANGEROUS_SERVICE_RIGHTS = {
-            "DC": "SERVICE_CHANGE_CONFIG",  # Critical - can change binary path
-            "RP": "SERVICE_START",
-            "WP": "SERVICE_STOP",
-            "SD": "DELETE",
-            "WD": "WRITE_DAC",
-            "WO": "WRITE_OWNER",
-            "GA": "GENERIC_ALL",
-            "GW": "GENERIC_WRITE",
-        }
-
-        # Look for ACEs granting dangerous rights to dangerous trustees
-        ace_pattern = r'\(([AD]);([^;]*);([^;]*);([^;]*);([^;]*);([^)]+)\)'
-
-        for match in re.finditer(ace_pattern, sddl):
-            ace_type, ace_flags, rights, obj_guid, inherit_guid, trustee = match.groups()
-            if ace_type != 'A':
-                continue
-
-            trustee_upper = trustee.upper()
-            if trustee_upper in DANGEROUS_TRUSTEES:
-                trustee_name = DANGEROUS_TRUSTEES[trustee_upper]
-
-                # Check for dangerous rights only
-                granted = []
-                rights_upper = rights.upper()
-                for code, desc in DANGEROUS_SERVICE_RIGHTS.items():
-                    if code in rights_upper:
-                        granted.append(desc)
-
-                # Also check for hex-encoded access
-                if "0x" in rights.lower():
-                    try:
-                        hex_val = int(rights, 16)
-                        if hex_val & 0x0002:  # SERVICE_CHANGE_CONFIG
-                            granted.append("SERVICE_CHANGE_CONFIG")
-                        if hex_val & 0x0010:  # SERVICE_START
-                            granted.append("SERVICE_START")
-                        if hex_val & 0x0020:  # SERVICE_STOP
-                            granted.append("SERVICE_STOP")
-                        if hex_val & 0x00040000:  # WRITE_DAC
-                            granted.append("WRITE_DAC")
-                        if hex_val & 0x00080000:  # WRITE_OWNER
-                            granted.append("WRITE_OWNER")
-                        if hex_val & 0x10000000:  # GENERIC_ALL
-                            granted.append("GENERIC_ALL")
-                    except ValueError:
-                        pass
-
-                if granted:
-                    warnings.append(
-                        f"{trustee_name} has: {', '.join(set(granted))}")
-
-        return len(warnings) > 0, warnings
+        return analyze_sddl_permissions(
+            sddl, DANGEROUS_TRUSTEES_SERVICE, DANGEROUS_RIGHTS_SERVICE,
+            hex_masks=SERVICE_HEX_MASKS)
 
     # -------------------------------------------------------------------------
     # TypeLib Search
@@ -1460,6 +1437,18 @@ class ComInterfaceAnalyzer:
                 winreg.HKEY_CLASSES_ROOT, ps_path, None)
             if result.proxy_stub_dll and "oleaut32" in result.proxy_stub_dll.lower():
                 result.marshaling_type = "oleautomation"
+                # For oleautomation, check if TypeLib GUID is properly registered
+                result.typelib_id = reg_read_value(
+                    winreg.HKEY_CLASSES_ROOT, rf"{iface_path}\TypeLib", None)
+                result.typelib_version = reg_read_value(winreg.HKEY_CLASSES_ROOT,
+                                                        rf"{iface_path}\TypeLib", "Version")
+                # Validate TypeLib GUID is not empty and exists in registry
+                if not result.typelib_id or not result.typelib_id.strip():
+                    result.marshaling_type = "oleautomation (broken - no TypeLib GUID)"
+                elif not reg_read_value(winreg.HKEY_CLASSES_ROOT, rf"TypeLib\{result.typelib_id}", None):
+                    # TypeLib GUID specified but not registered in TypeLib registry
+                    # This can still work if the interface itself is the TypeLib ID
+                    pass
             elif result.proxy_stub_dll:
                 # Analyze proxy DLL security (CFG, signature, etc.)
                 main_signer = self.pe_info.signer_name if self.pe_info else None
@@ -1512,17 +1501,12 @@ class ComInterfaceAnalyzer:
 
             # Security mitigations from DllCharacteristics
             if hasattr(pe, 'OPTIONAL_HEADER'):
-                dll_char = pe.OPTIONAL_HEADER.DllCharacteristics
-                # IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
-                result.aslr = bool(dll_char & 0x0040)
-                # IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA
-                result.high_entropy_aslr = bool(dll_char & 0x0020)
-                # IMAGE_DLLCHARACTERISTICS_NX_COMPAT
-                result.dep = bool(dll_char & 0x0100)
-                # IMAGE_DLLCHARACTERISTICS_GUARD_CF
-                result.cfg = bool(dll_char & 0x4000)
-                # IMAGE_DLLCHARACTERISTICS_GUARD_RF (if available)
-                result.guard_rf = bool(dll_char & 0x00020000)
+                m = parse_pe_mitigations(pe.OPTIONAL_HEADER.DllCharacteristics)
+                result.aslr = m["aslr"]
+                result.high_entropy_aslr = m["high_entropy_aslr"]
+                result.dep = m["dep"]
+                result.cfg = m["cfg"]
+                result.guard_rf = m["guard_rf"]
 
             # Check for TypeLib resource (RT_TYPELIB = 16)
             if hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):
@@ -1704,36 +1688,64 @@ class ComInterfaceAnalyzer:
             return False
 
     def get_inheritance_chain(self, ti: comtypes.typeinfo.ITypeInfo) -> List[InterfaceInfo]:
-        """Build inheritance chain for an interface."""
+        """Build inheritance chain for an interface, using cache to minimize COM calls."""
         chain = []
         visited = set()
 
         def trace(type_info):
+            attr = None
             try:
                 attr = type_info.GetTypeAttr()
                 iid = str(attr.guid)
 
                 if iid in visited:
-                    type_info.ReleaseTypeAttr(attr)
                     return
                 visited.add(iid)
 
+                # Skip corrupted type entries (garbage cFuncs/cImplTypes)
+                if attr.cFuncs > 30 or attr.cImplTypes > 5:
+                    return
+
+                # Check cache first - reuse previously parsed data
+                if iid in self._iface_cache:
+                    cached = self._iface_cache[iid]
+                    # Still need to recurse into base for the chain ordering
+                    num_impl = attr.cImplTypes
+                    type_info.ReleaseTypeAttr(attr)
+                    attr = None
+                    if num_impl > 0:
+                        try:
+                            ref = type_info.GetRefTypeOfImplType(0)
+                            base_ti = type_info.GetRefTypeInfo(ref)
+                            trace(base_ti)
+                        except Exception:
+                            pass
+                    chain.append(cached)
+                    return
+
                 name, _, _, _ = type_info.GetDocumentation(-1)
+                num_funcs = attr.cFuncs
+                num_impl = attr.cImplTypes
+
+                # Release attr early - we have all we need from it
+                type_info.ReleaseTypeAttr(attr)
+                attr = None
 
                 # Get base interface
                 base_name = "IUnknown"
-                if attr.cImplTypes > 0:
+                if num_impl > 0:
                     try:
                         ref = type_info.GetRefTypeOfImplType(0)
                         base_ti = type_info.GetRefTypeInfo(ref)
                         base_name, _, _, _ = base_ti.GetDocumentation(-1)
                         trace(base_ti)
-                    except comtypes.COMError:
+                    except Exception:
                         pass
 
                 # Parse methods
                 methods = []
-                for i in range(attr.cFuncs):
+                for i in range(num_funcs):
+                    fd = None
                     try:
                         fd = type_info.GetFuncDesc(i)
                         names = type_info.GetNames(fd.memid, fd.cParams + 1)
@@ -1761,17 +1773,30 @@ class ComInterfaceAnalyzer:
                             name=method_name, ret_type=ret_type, params=params,
                             ovft=fd.oVft, memid=fd.memid, index_in_interface=i
                         ))
-                        type_info.ReleaseFuncDesc(fd)
-                    except comtypes.COMError:
+                    except Exception:
                         pass
+                    finally:
+                        if fd is not None:
+                            try:
+                                type_info.ReleaseFuncDesc(fd)
+                            except Exception:
+                                pass
 
-                chain.append(InterfaceInfo(
-                    name=name, iid=iid, type_info_obj=type_info, type_attr_obj=attr,
+                info = InterfaceInfo(
+                    name=name, iid=iid, num_funcs=num_funcs,
                     methods_defined=methods, base_interface_name=base_name
-                ))
+                )
+                self._iface_cache[iid] = info
+                chain.append(info)
 
-            except comtypes.COMError:
+            except Exception:
                 pass
+            finally:
+                if attr is not None:
+                    try:
+                        type_info.ReleaseTypeAttr(attr)
+                    except Exception:
+                        pass
 
         trace(ti)
         return chain
@@ -1813,18 +1838,34 @@ class ComInterfaceAnalyzer:
         self._log(f"Found {count} type definitions to scan",
                   indent=1, emoji="info")
 
+        # Pre-filter: identify valid interface indices in a clean pass
+        # This avoids COM heap corruption from TYPEATTR leaks affecting later entries
+        valid_indices = []
         for i in range(count):
             try:
                 ti = self.type_lib.GetTypeInfo(i)
                 attr = ti.GetTypeAttr()
+                is_valid = (attr.typekind == comtypes.typeinfo.TKIND_INTERFACE
+                            and attr.cFuncs <= 30 and attr.cImplTypes <= 5)
+                ti.ReleaseTypeAttr(attr)
+                if is_valid:
+                    valid_indices.append(i)
+            except Exception:
+                pass
 
-                if attr.typekind != comtypes.typeinfo.TKIND_INTERFACE:
-                    ti.ReleaseTypeAttr(attr)
-                    continue
+        for i in valid_indices:
+            attr = None
+            try:
+                ti = self.type_lib.GetTypeInfo(i)
+                attr = ti.GetTypeAttr()
 
                 self.interfaces_scanned += 1
                 name, _, _, _ = ti.GetDocumentation(-1)
                 iid = str(attr.guid)
+
+                # Release attr early - get_inheritance_chain will do its own GetTypeAttr
+                ti.ReleaseTypeAttr(attr)
+                attr = None
 
                 self._log(
                     f"Scanning Interface: '{name}' (IID: {iid})", indent=2, verbose_only=True)
@@ -1836,24 +1877,20 @@ class ComInterfaceAnalyzer:
                 for iface in chain:
                     for method in iface.methods_defined:
                         if method.name in self.target_methods:
-                            # Verify signature
-                            for j in range(iface.type_attr_obj.cFuncs):
-                                try:
-                                    fd = iface.type_info_obj.GetFuncDesc(j)
-                                    names = iface.type_info_obj.GetNames(
-                                        fd.memid, 1)
-                                    if names and names[0] == method.name:
-                                        if self.check_method_signature(method.name, fd, iface.type_info_obj):
-                                            found_methods[method.name] = AnalyzedMethod(
-                                                name=method.name, ovft=method.ovft, memid=method.memid,
-                                                defining_interface_name=iface.name,
-                                                defining_interface_iid=iface.iid
-                                            )
-                                            self._log(f"'{method.name}' matched in '{iface.name}'",
-                                                      indent=4, verbose_only=True, emoji="lightbulb")
-                                    iface.type_info_obj.ReleaseFuncDesc(fd)
-                                except comtypes.COMError:
-                                    pass
+                            # Verify signature using already-parsed method data
+                            expected = self.expected_params.get(method.name)
+                            param_count = len(method.params)
+                            if expected is not None and param_count != expected:
+                                continue
+                            if method.ret_type != "HRESULT":
+                                continue
+                            found_methods[method.name] = AnalyzedMethod(
+                                name=method.name, ovft=method.ovft, memid=method.memid,
+                                defining_interface_name=iface.name,
+                                defining_interface_iid=iface.iid
+                            )
+                            self._log(f"'{method.name}' matched in '{iface.name}'",
+                                      indent=4, verbose_only=True, emoji="lightbulb")
 
                 # Check if all target methods found
                 if all(m in found_methods for m in self.target_methods):
@@ -1866,14 +1903,142 @@ class ComInterfaceAnalyzer:
                     self._log(
                         f"Found ABE-capable: '{name}' (IID: {iid})", indent=2, emoji="info")
 
-                ti.ReleaseTypeAttr(attr)
-
-            except comtypes.COMError:
-                pass
+            except Exception as e:
+                if not isinstance(e, comtypes.COMError):
+                    self._log(f"Skipping type definition {i}: {type(e).__name__}: {e}",
+                              indent=2, verbose_only=True, emoji="warning")
+            finally:
+                if attr is not None:
+                    try:
+                        ti.ReleaseTypeAttr(attr)
+                    except Exception:
+                        pass
 
     # -------------------------------------------------------------------------
     # Main Analysis Entry Point
     # -------------------------------------------------------------------------
+
+    def _step_discover(self, scan_mode: bool, browser_key: str, user_clsid: str) -> bool:
+        """Discovery step: find service details and CLSID."""
+        if scan_mode and browser_key:
+            self._log(f"Scan mode enabled for: {browser_key}", emoji="gear")
+            if not self.find_service_details(browser_key):
+                return False
+        if user_clsid:
+            self.discovered_clsid = user_clsid
+        return True
+
+    def _step_pe_analysis(self):
+        """PE analysis step: extract PE structure info."""
+        if self.executable_path and pefile:
+            self._log("Analyzing PE structure...", indent=1, emoji="gear")
+            pe_info = self.analyze_pe_typelib()
+            if pe_info.machine_name:
+                self._log(f"PE Architecture: {pe_info.machine_name}",
+                          indent=2, verbose_only=True, emoji="info")
+
+    def _step_security_analysis(self):
+        """Security analysis step: COM security + service DACL."""
+        if not self.discovered_clsid:
+            return
+        self._log("Analyzing COM security settings...", indent=1, emoji="gear")
+        sec = self.analyze_com_security(self.discovered_clsid)
+        if sec.local_service:
+            self._log(f"LocalService: {sec.local_service}",
+                      indent=2, verbose_only=True, emoji="info")
+            self._log("Analyzing service DACL...", indent=1, emoji="gear")
+            svc_sec = self.analyze_service_security(sec.local_service)
+            if svc_sec.has_weak_permissions:
+                self._log("WEAK SERVICE PERMISSIONS DETECTED!",
+                          indent=2, emoji="warning")
+
+    def _log_proxy_dll_security(self, ps: ProxyStubInfo):
+        """Log verbose proxy DLL security analysis."""
+        if not ps.dll_security or not self.verbose:
+            return
+        sec = ps.dll_security
+        if sec.exists:
+            mitigations = [name for flag, name in [
+                (sec.aslr, "ASLR"), (sec.high_entropy_aslr, "HiASLR"),
+                (sec.dep, "DEP"), (sec.cfg, "CFG")] if flag]
+            self._log(f"  Proxy DLL: {ps.proxy_stub_dll}", indent=2, verbose_only=True)
+            self._log(f"  Mitigations: {', '.join(mitigations) if mitigations else 'NONE'}",
+                      indent=2, verbose_only=True)
+            if sec.is_signed:
+                sig_status = "VALID" if sec.signature_valid else "INVALID"
+                self._log(f"  Signature: {sig_status} ({sec.signer_name})",
+                          indent=2, verbose_only=True)
+                if not sec.same_signer_as_main:
+                    self._log(f"  {EMOJI['warning']} DIFFERENT SIGNER than main executable!",
+                              indent=2, verbose_only=True)
+            else:
+                self._log(f"  Signature: NOT SIGNED", indent=2,
+                          verbose_only=True, emoji="warning")
+            if not sec.cfg:
+                self._log(f"  {EMOJI['warning']} Proxy DLL missing CFG - potential hijack target",
+                          indent=2, verbose_only=True)
+        elif sec.analysis_error:
+            self._log(f"  Proxy DLL analysis error: {sec.analysis_error}",
+                      indent=2, verbose_only=True)
+
+    def _step_proxy_stub_analysis(self):
+        """Proxy/stub analysis step: check marshaling and find alternatives."""
+        if not self.results:
+            return
+        self._log("Analyzing proxy/stub registration...", indent=1, emoji="gear")
+        alternatives_to_add = []
+        for r in self.results:
+            ps = self.analyze_proxy_stub(r.interface_iid)
+            self._log(f"{r.interface_name}: {ps.marshaling_type}",
+                      indent=2, verbose_only=True, emoji="info")
+
+            # If marshaling is broken, look for working alternatives
+            if "broken" in ps.marshaling_type.lower():
+                self._log(f"{EMOJI['warning']} Interface has broken TypeLib registration!",
+                          indent=2, emoji="warning")
+                if self.type_lib:
+                    for i in range(self.type_lib.GetTypeInfoCount()):
+                        try:
+                            ti = self.type_lib.GetTypeInfo(i)
+                            attr = ti.GetTypeAttr()
+                            if attr.typekind == comtypes.typeinfo.TKIND_INTERFACE:
+                                alt_name, _, _, _ = ti.GetDocumentation(-1)
+                                alt_iid = str(attr.guid)
+                                if alt_iid != r.interface_iid:
+                                    alt_ps = self.analyze_proxy_stub(alt_iid)
+                                    if alt_ps.registered and "broken" not in alt_ps.marshaling_type.lower():
+                                        if attr.cImplTypes > 0:
+                                            try:
+                                                ref = ti.GetRefTypeOfImplType(0)
+                                                base_ti = ti.GetRefTypeInfo(ref)
+                                                base_attr = base_ti.GetTypeAttr()
+                                                base_iid = str(base_attr.guid)
+                                                base_ti.ReleaseTypeAttr(base_attr)
+                                                if base_iid == r.interface_iid:
+                                                    self._log(f"{EMOJI['lightbulb']} Alternative: Use {alt_name} (IID: {alt_iid}) - has valid marshaling",
+                                                              indent=2, emoji="lightbulb")
+                                                    alt_chain = self.get_inheritance_chain(ti)
+                                                    alt_candidate = AbeCandidate(
+                                                        clsid=self.discovered_clsid or "Unknown",
+                                                        interface_name=alt_name,
+                                                        interface_iid=alt_iid,
+                                                        methods=r.methods,
+                                                        inheritance_chain_info=alt_chain
+                                                    )
+                                                    alternatives_to_add.append(alt_candidate)
+                                            except Exception:
+                                                pass
+                            ti.ReleaseTypeAttr(attr)
+                        except Exception:
+                            pass
+
+            self._log_proxy_dll_security(ps)
+
+        # Add working alternatives to results
+        for alt in alternatives_to_add:
+            if not any(r.interface_iid == alt.interface_iid for r in self.results):
+                self.results.append(alt)
+                self.interfaces_abe_capable += 1
 
     def analyze(self, scan_mode: bool = False, browser_key: str = None, user_clsid: str = None):
         """Main analysis entry point."""
@@ -1881,91 +2046,15 @@ class ComInterfaceAnalyzer:
         self.start_time = time.time()
 
         try:
-            if scan_mode and browser_key:
-                self._log(
-                    f"Scan mode enabled for: {browser_key}", emoji="gear")
-                if not self.find_service_details(browser_key):
-                    return
-
-            if user_clsid:
-                self.discovered_clsid = user_clsid
-
-            # PE analysis
-            if self.executable_path and pefile:
-                self._log("Analyzing PE structure...", indent=1, emoji="gear")
-                pe_info = self.analyze_pe_typelib()
-                if pe_info.machine_name:
-                    self._log(
-                        f"PE Architecture: {pe_info.machine_name}", indent=2, verbose_only=True, emoji="info")
-
-            # Load TypeLib
+            if not self._step_discover(scan_mode, browser_key, user_clsid):
+                return
+            self._step_pe_analysis()
             if not self.load_type_library():
                 return
-
-            # Analyze coclasses
             self.analyze_coclasses()
-
-            # Analyze interfaces
             self.analyze_interfaces()
-
-            # Analyze security
-            if self.discovered_clsid:
-                self._log("Analyzing COM security settings...",
-                          indent=1, emoji="gear")
-                sec = self.analyze_com_security(self.discovered_clsid)
-                if sec.local_service:
-                    self._log(
-                        f"LocalService: {sec.local_service}", indent=2, verbose_only=True, emoji="info")
-                    # Analyze service DACL
-                    self._log("Analyzing service DACL...",
-                              indent=1, emoji="gear")
-                    svc_sec = self.analyze_service_security(sec.local_service)
-                    if svc_sec.has_weak_permissions:
-                        self._log("WEAK SERVICE PERMISSIONS DETECTED!",
-                                  indent=2, emoji="warning")
-
-            # Analyze proxy/stub for results
-            if self.results:
-                self._log("Analyzing proxy/stub registration...",
-                          indent=1, emoji="gear")
-                for r in self.results:
-                    ps = self.analyze_proxy_stub(r.interface_iid)
-                    self._log(f"{r.interface_name}: {ps.marshaling_type}",
-                              indent=2, verbose_only=True, emoji="info")
-                    # Show proxy DLL security analysis if available
-                    if ps.dll_security and self.verbose:
-                        sec = ps.dll_security
-                        if sec.exists:
-                            mitigations = []
-                            if sec.aslr:
-                                mitigations.append("ASLR")
-                            if sec.high_entropy_aslr:
-                                mitigations.append("HiASLR")
-                            if sec.dep:
-                                mitigations.append("DEP")
-                            if sec.cfg:
-                                mitigations.append("CFG")
-                            self._log(
-                                f"  Proxy DLL: {ps.proxy_stub_dll}", indent=2, verbose_only=True)
-                            self._log(
-                                f"  Mitigations: {', '.join(mitigations) if mitigations else 'NONE'}", indent=2, verbose_only=True)
-                            if sec.is_signed:
-                                sig_status = "VALID" if sec.signature_valid else "INVALID"
-                                self._log(
-                                    f"  Signature: {sig_status} ({sec.signer_name})", indent=2, verbose_only=True)
-                                if not sec.same_signer_as_main:
-                                    self._log(
-                                        f"  {EMOJI['warning']} DIFFERENT SIGNER than main executable!", indent=2, verbose_only=True)
-                            else:
-                                self._log(f"  Signature: NOT SIGNED", indent=2,
-                                          verbose_only=True, emoji="warning")
-                            if not sec.cfg:
-                                self._log(
-                                    f"  {EMOJI['warning']} Proxy DLL missing CFG - potential hijack target", indent=2, verbose_only=True)
-                        elif sec.analysis_error:
-                            self._log(
-                                f"  Proxy DLL analysis error: {sec.analysis_error}", indent=2, verbose_only=True)
-
+            self._step_security_analysis()
+            self._step_proxy_stub_analysis()
         finally:
             comtypes.CoUninitialize()
 
@@ -1999,7 +2088,7 @@ class ComInterfaceAnalyzer:
             data = {
                 "metadata": {
                     "tool": "COMrade ABE Analyzer",
-                    "version": "2.1.0",
+                    "version": VERSION,
                     "timestamp": datetime.now().isoformat(),
                     "duration_seconds": time.time() - self.start_time if self.start_time else 0,
                     "browser": self.browser_key or "unknown",
@@ -2081,7 +2170,12 @@ class ComInterfaceAnalyzer:
                                 for name, m in r.methods.items()},
                     "inheritance_chain": [{"name": i.name, "iid": i.iid,
                                            "base": i.base_interface_name,
-                                           "methods_count": len(i.methods_defined)}
+                                           "methods": [{"name": md.name,
+                                                        "return_type": md.ret_type,
+                                                        "params": md.params,
+                                                        "vtable_offset": md.ovft,
+                                                        "memid": md.memid}
+                                                       for md in i.methods_defined]}
                                           for i in r.inheritance_chain_info],
                     "proxy_stub": {
                         "type": ps.marshaling_type,
@@ -2138,6 +2232,191 @@ class ComInterfaceAnalyzer:
 
         return output
 
+    def _get_primary_candidate(self) -> 'AbeCandidate':
+        """Find the primary candidate based on known IIDs."""
+        known_iids = [iid.lower() for iid in KNOWN_PRIMARY_IIDS.get(self.browser_key, [])]
+        for r in self.results:
+            if r.interface_iid.lower() in known_iids:
+                return r
+        return self.results[0]
+
+    def _print_summary_header(self):
+        browser = (self.browser_key or "unknown").capitalize()
+        exe = self.executable_path or "N/A"
+        clsid = self.results[0].clsid
+        print(f"\n--- {EMOJI['lightbulb']} Analysis Summary ---")
+        print(f"  Browser Target    : {browser}")
+        print(f"  Service Executable: {exe}")
+        print(f"  Discovered CLSID  : {clsid}")
+        print(f"      (C++ Style)   : {format_guid_for_cpp(clsid)}")
+
+    def _print_statistics(self):
+        if not self.start_time:
+            return
+        duration = time.time() - self.start_time
+        print(f"\n  {EMOJI['gear']} Statistics:")
+        print(f"    Analysis Duration : {duration:.2f} seconds")
+        print(f"    Interfaces Scanned: {self.interfaces_scanned}")
+        print(f"    ABE-Capable Found : {self.interfaces_abe_capable}")
+        print(f"    Coclasses Found   : {len(self.coclasses)}")
+        if self.interfaces_scanned > 0:
+            print(f"    Success Rate      : {(self.interfaces_abe_capable / self.interfaces_scanned) * 100:.1f}%")
+
+    def _print_pe_info(self):
+        if not self.pe_info or self.pe_info.pe_error:
+            return
+        print(f"\n  {EMOJI['file']} PE Information:")
+        print(f"    Architecture      : {self.pe_info.machine_name}")
+        print(f"    Build Timestamp   : {self.pe_info.timestamp}")
+        print(f"    Embedded TypeLib  : {'Yes' if self.pe_info.has_embedded_typelib else 'No'}")
+        print(f"    Uses RPC Runtime  : {'Yes' if self.pe_info.uses_rpc else 'No'}")
+        print(f"    Uses OLE/OleAut   : {'Yes' if self.pe_info.uses_ole else 'No'}")
+
+    def _print_security_mitigations(self):
+        if not self.pe_info or self.pe_info.pe_error:
+            return
+        print(f"\n  {EMOJI['gear']} Security Mitigations:")
+        aslr_status = f"{EMOJI['success']} Enabled" if self.pe_info.aslr else f"{EMOJI['failure']} Disabled"
+        dep_status = f"{EMOJI['success']} Enabled" if self.pe_info.dep else f"{EMOJI['failure']} Disabled"
+        cfg_status = f"{EMOJI['success']} Enabled" if self.pe_info.cfg else f"{EMOJI['warning']} Disabled"
+        high_ent = " (High Entropy)" if self.pe_info.high_entropy_aslr else ""
+        print(f"    ASLR              : {aslr_status}{high_ent}")
+        print(f"    DEP (NX)          : {dep_status}")
+        print(f"    Control Flow Guard: {cfg_status}")
+
+    def _print_digital_signature(self):
+        if not self.pe_info or self.pe_info.pe_error:
+            return
+        print(f"\n  {EMOJI['gear']} Digital Signature:")
+        if self.pe_info.is_signed:
+            if self.pe_info.signature_valid:
+                print(f"    Status            : {EMOJI['success']} Valid signature")
+            else:
+                print(f"    Status            : {EMOJI['warning']} Invalid - {self.pe_info.signature_error}")
+            if self.pe_info.signer_name:
+                print(f"    Signer            : {self.pe_info.signer_name}")
+        else:
+            print(f"    Status            : {EMOJI['failure']} Not signed - {self.pe_info.signature_error or 'No signature'}")
+
+    def _print_hardening_apis(self):
+        if not self.pe_info or self.pe_info.pe_error or not self.pe_info.hardening_apis:
+            return
+        print(f"\n  {EMOJI['warning']} Hardening APIs Detected ({len(self.pe_info.hardening_apis)}):")
+        for api in self.pe_info.hardening_apis:
+            print(f"    - {api}")
+
+    def _print_com_security(self, show_sddl: bool, show_service_status: bool):
+        if not self.discovered_clsid:
+            return
+        sec = self.analyze_com_security(self.discovered_clsid)
+        if not (sec.appid or sec.local_service or sec.runas):
+            return
+        print(f"\n  {EMOJI['gear']} COM Security Settings:")
+        if sec.appid:
+            print(f"    AppID             : {sec.appid}")
+        if sec.local_service:
+            print(f"    LocalService      : {sec.local_service}")
+            if show_service_status:
+                rt = self.get_service_runtime_status(sec.local_service)
+                status_emoji = EMOJI['success'] if rt.status == "running" else EMOJI['info']
+                pid_str = f" (PID: {rt.pid})" if rt.pid else ""
+                print(f"    Service Status    : {status_emoji} {rt.status}{pid_str}")
+                print(f"    Service Start Type: {rt.start_type}")
+        if sec.runas:
+            print(f"    RunAs             : {sec.runas}")
+        if sec.has_launch_permission:
+            print(f"    LaunchPermission  : Set ({sec.launch_permission_size} bytes)")
+            if show_sddl and sec.launch_permission_sddl:
+                print(f"      SDDL: {sec.launch_permission_sddl}")
+        if sec.has_access_permission:
+            print(f"    AccessPermission  : Set ({sec.access_permission_size} bytes)")
+            if show_sddl and sec.access_permission_sddl:
+                print(f"      SDDL: {sec.access_permission_sddl}")
+
+        if show_sddl:
+            if sec.launch_permission_sddl:
+                is_dangerous, warnings = analyze_sddl_dangers(sec.launch_permission_sddl)
+                if is_dangerous:
+                    print(f"    {EMOJI['warning']} Launch Permission Risks:")
+                    for w in warnings:
+                        print(f"      - {w}")
+            if sec.access_permission_sddl:
+                is_dangerous, warnings = analyze_sddl_dangers(sec.access_permission_sddl)
+                if is_dangerous:
+                    print(f"    {EMOJI['warning']} Access Permission Risks:")
+                    for w in warnings:
+                        print(f"      - {w}")
+
+    def _print_service_dacl(self, show_sddl: bool):
+        if not self.service_security:
+            return
+        svc_sec = self.service_security
+        print(f"\n  {EMOJI['gear']} Service DACL Security:")
+        if svc_sec.query_error:
+            print(f"    {EMOJI['warning']} Query error: {svc_sec.query_error}")
+        elif svc_sec.dacl_sddl:
+            if svc_sec.has_weak_permissions:
+                print(f"    {EMOJI['failure']} WEAK PERMISSIONS DETECTED:")
+                for detail in svc_sec.weak_permission_details:
+                    print(f"      - {detail}")
+            else:
+                print(f"    {EMOJI['success']} No dangerous permissions found")
+            if show_sddl:
+                print(f"    SDDL: {svc_sec.dacl_sddl}")
+        else:
+            print(f"    {EMOJI['info']} Unable to query (may require elevation)")
+
+    def _print_coclasses(self):
+        if not self.coclasses or not self.verbose:
+            return
+        print(f"\n  {EMOJI['gear']} Coclasses ({len(self.coclasses)}):")
+        for cc in self.coclasses:
+            print(f"    {cc.name}: {cc.clsid}")
+
+    def _print_candidates(self):
+        primary = self._get_primary_candidate()
+        print(f"\n  Found {len(self.results)} ABE-Capable Interface(s):")
+        for i, r in enumerate(self.results):
+            is_primary = r.interface_iid.lower() == primary.interface_iid.lower()
+            marker = f" {EMOJI['lightbulb']} (Likely primary for tool)" if is_primary else ""
+            print(f"\n  Candidate {i + 1}:{marker}")
+            print(f"    Interface Name: {r.interface_name}")
+            print(f"    IID           : {r.interface_iid}")
+            print(f"      (C++ Style) : {format_guid_for_cpp(r.interface_iid)}")
+
+    def _print_verbose_details(self):
+        if not self.verbose:
+            return
+        print(f"\n--- {EMOJI['info']} Verbose Candidate Details ---")
+        for i, r in enumerate(self.results):
+            print(f"\n  --- Candidate {i + 1}: '{r.interface_name}' ---")
+            print(f"    Methods (ABE):")
+            for name, m in r.methods.items():
+                slot = m.ovft // 8
+                print(f"      - {name}: VTable Offset {m.ovft} (Slot ~{slot}), in '{m.defining_interface_name}'")
+            print(f"    Inheritance: {' -> '.join(iface.name for iface in reversed(r.inheritance_chain_info))}")
+            for iface in reversed(r.inheritance_chain_info):
+                print(f"      {iface.name} (IID: {iface.iid}) - {len(iface.methods_defined)} method(s)")
+                for m in iface.methods_defined:
+                    params = ', '.join(m.params) if m.params else 'void'
+                    print(f"        - {m.ret_type} {m.name}({params}) (oVft: {m.ovft})")
+        print("--- End Verbose Details ---")
+
+    def _write_cpp_stubs(self, output_cpp_file: str):
+        primary = self._get_primary_candidate()
+        browser = (self.browser_key or "unknown").capitalize()
+        self._log(f"\nGenerating C++ stubs for '{primary.interface_name}'...", emoji="gear")
+        header = f"// COM Stubs for {browser}\n// Generated by COMrade ABE Analyzer\n"
+        header += f"// CLSID: {format_guid_for_cpp(primary.clsid)}\n"
+        header += f"// IID: {format_guid_for_cpp(primary.interface_iid)}\n\n"
+        content = self.generate_cpp_stubs(primary.inheritance_chain_info, primary.interface_iid)
+        try:
+            with open(output_cpp_file, 'w', encoding='utf-8') as f:
+                f.write(header + content)
+            self._log(f"C++ stubs written to: {output_cpp_file}", emoji="success")
+        except IOError as e:
+            self._log(f"Error writing stubs: {e}", emoji="failure")
+
     def print_results(self, output_cpp_file: str = None, show_sddl: bool = False,
                       show_service_status: bool = False):
         """Print analysis results."""
@@ -2145,208 +2424,65 @@ class ComInterfaceAnalyzer:
             self._log("No ABE Interface candidates found.", emoji="failure")
             return
 
-        browser = (self.browser_key or "unknown").capitalize()
-        exe = self.executable_path or "N/A"
+        self._print_summary_header()
+        self._print_statistics()
+        self._print_pe_info()
+        self._print_security_mitigations()
+        self._print_digital_signature()
+        self._print_hardening_apis()
+        self._print_com_security(show_sddl, show_service_status)
+        self._print_service_dacl(show_sddl)
+        self._print_coclasses()
+        self._print_candidates()
+        self._print_verbose_details()
+        if output_cpp_file:
+            self._write_cpp_stubs(output_cpp_file)
+
+    def print_brief(self):
+        """Print compact one-line-per-interface summary."""
+        if not self.results:
+            self._log("No ABE Interface candidates found.", emoji="failure")
+            return
+
+        browser = (self.browser_key or "unknown").upper()
         clsid = self.results[0].clsid
 
-        print(f"\n--- {EMOJI['lightbulb']} Analysis Summary ---")
-        print(f"  Browser Target    : {browser}")
-        print(f"  Service Executable: {exe}")
-        print(f"  Discovered CLSID  : {clsid}")
-        print(f"      (C++ Style)   : {format_guid_for_cpp(clsid)}")
-
-        # Statistics
-        if self.start_time:
-            duration = time.time() - self.start_time
-            print(f"\n  {EMOJI['gear']} Statistics:")
-            print(f"    Analysis Duration : {duration:.2f} seconds")
-            print(f"    Interfaces Scanned: {self.interfaces_scanned}")
-            print(f"    ABE-Capable Found : {self.interfaces_abe_capable}")
-            print(f"    Coclasses Found   : {len(self.coclasses)}")
-            if self.interfaces_scanned > 0:
-                print(
-                    f"    Success Rate      : {(self.interfaces_abe_capable / self.interfaces_scanned) * 100:.1f}%")
-
-        # PE info
-        if self.pe_info and not self.pe_info.pe_error:
-            print(f"\n  {EMOJI['file']} PE Information:")
-            print(f"    Architecture      : {self.pe_info.machine_name}")
-            print(f"    Build Timestamp   : {self.pe_info.timestamp}")
-            print(
-                f"    Embedded TypeLib  : {'Yes' if self.pe_info.has_embedded_typelib else 'No'}")
-            print(
-                f"    Uses RPC Runtime  : {'Yes' if self.pe_info.uses_rpc else 'No'}")
-            print(
-                f"    Uses OLE/OleAut   : {'Yes' if self.pe_info.uses_ole else 'No'}")
-
-            # Security mitigations
-            print(f"\n  {EMOJI['gear']} Security Mitigations:")
-            aslr_status = f"{EMOJI['success']} Enabled" if self.pe_info.aslr else f"{EMOJI['failure']} Disabled"
-            dep_status = f"{EMOJI['success']} Enabled" if self.pe_info.dep else f"{EMOJI['failure']} Disabled"
-            cfg_status = f"{EMOJI['success']} Enabled" if self.pe_info.cfg else f"{EMOJI['warning']} Disabled"
-            high_ent = " (High Entropy)" if self.pe_info.high_entropy_aslr else ""
-            print(f"    ASLR              : {aslr_status}{high_ent}")
-            print(f"    DEP (NX)          : {dep_status}")
-            print(f"    Control Flow Guard: {cfg_status}")
-
-            # Digital signature
-            print(f"\n  {EMOJI['gear']} Digital Signature:")
-            if self.pe_info.is_signed:
-                if self.pe_info.signature_valid:
-                    print(
-                        f"    Status            : {EMOJI['success']} Valid signature")
-                else:
-                    print(
-                        f"    Status            : {EMOJI['warning']} Invalid - {self.pe_info.signature_error}")
-                if self.pe_info.signer_name:
-                    print(
-                        f"    Signer            : {self.pe_info.signer_name}")
-            else:
-                print(
-                    f"    Status            : {EMOJI['failure']} Not signed - {self.pe_info.signature_error or 'No signature'}")
-
-            # Show hardening APIs (security validation mechanisms)
-            if self.pe_info.hardening_apis:
-                print(
-                    f"\n  {EMOJI['warning']} Hardening APIs Detected ({len(self.pe_info.hardening_apis)}):")
-                for api in self.pe_info.hardening_apis:
-                    print(f"    - {api}")
-
-        # Security info
-        if self.discovered_clsid:
-            sec = self.analyze_com_security(self.discovered_clsid)
-            if sec.appid or sec.local_service or sec.runas:
-                print(f"\n  {EMOJI['gear']} COM Security Settings:")
-                if sec.appid:
-                    print(f"    AppID             : {sec.appid}")
-                if sec.local_service:
-                    print(f"    LocalService      : {sec.local_service}")
-                    if show_service_status:
-                        rt = self.get_service_runtime_status(sec.local_service)
-                        status_emoji = EMOJI['success'] if rt.status == "running" else EMOJI['info']
-                        pid_str = f" (PID: {rt.pid})" if rt.pid else ""
-                        print(
-                            f"    Service Status    : {status_emoji} {rt.status}{pid_str}")
-                        print(f"    Service Start Type: {rt.start_type}")
-                if sec.runas:
-                    print(f"    RunAs             : {sec.runas}")
-                if sec.has_launch_permission:
-                    print(
-                        f"    LaunchPermission  : Set ({sec.launch_permission_size} bytes)")
-                    if show_sddl and sec.launch_permission_sddl:
-                        print(f"      SDDL: {sec.launch_permission_sddl}")
-                if sec.has_access_permission:
-                    print(
-                        f"    AccessPermission  : Set ({sec.access_permission_size} bytes)")
-                    if show_sddl and sec.access_permission_sddl:
-                        print(f"      SDDL: {sec.access_permission_sddl}")
-
-                # Analyze COM permission dangers
-                if show_sddl:
-                    if sec.launch_permission_sddl:
-                        is_dangerous, warnings = analyze_sddl_dangers(
-                            sec.launch_permission_sddl)
-                        if is_dangerous:
-                            print(
-                                f"    {EMOJI['warning']} Launch Permission Risks:")
-                            for w in warnings:
-                                print(f"      - {w}")
-                    if sec.access_permission_sddl:
-                        is_dangerous, warnings = analyze_sddl_dangers(
-                            sec.access_permission_sddl)
-                        if is_dangerous:
-                            print(
-                                f"    {EMOJI['warning']} Access Permission Risks:")
-                            for w in warnings:
-                                print(f"      - {w}")
-
-        # Service DACL security
-        if self.service_security:
-            svc_sec = self.service_security
-            print(f"\n  {EMOJI['gear']} Service DACL Security:")
-            if svc_sec.query_error:
-                print(
-                    f"    {EMOJI['warning']} Query error: {svc_sec.query_error}")
-            elif svc_sec.dacl_sddl:
-                if svc_sec.has_weak_permissions:
-                    print(f"    {EMOJI['failure']} WEAK PERMISSIONS DETECTED:")
-                    for detail in svc_sec.weak_permission_details:
-                        print(f"      - {detail}")
-                else:
-                    print(
-                        f"    {EMOJI['success']} No dangerous permissions found")
-                if show_sddl:
-                    print(f"    SDDL: {svc_sec.dacl_sddl}")
-            else:
-                print(
-                    f"    {EMOJI['info']} Unable to query (may require elevation)")
-
-        # Coclasses
-        if self.coclasses and self.verbose:
-            print(f"\n  {EMOJI['gear']} Coclasses ({len(self.coclasses)}):")
-            for cc in self.coclasses:
-                print(f"    {cc.name}: {cc.clsid}")
-
-        # Results
-        print(f"\n  Found {len(self.results)} ABE-Capable Interface(s):")
-
-        # Find primary candidate
-        primary_iid = KNOWN_PRIMARY_IIDS.get(self.browser_key, "").lower()
-        primary = self.results[0]
         for r in self.results:
-            if r.interface_iid.lower() == primary_iid:
-                primary = r
-                break
+            ps = self.analyze_proxy_stub(r.interface_iid)
+            marshal_status = "OK" if ps.registered and "broken" not in ps.marshaling_type.lower() else "BROKEN"
 
-        for i, r in enumerate(self.results):
-            is_primary = r.interface_iid.lower() == primary.interface_iid.lower()
-            marker = f" {EMOJI['lightbulb']} (Likely primary for tool)" if is_primary else ""
-            print(f"\n  Candidate {i + 1}:{marker}")
-            print(f"    Interface Name: {r.interface_name}")
-            print(f"    IID           : {r.interface_iid}")
-            print(
-                f"      (C++ Style) : {format_guid_for_cpp(r.interface_iid)}")
+            enc_offset = r.methods.get("EncryptData")
+            dec_offset = r.methods.get("DecryptData")
+            enc_str = f"Enc@{enc_offset.ovft}" if enc_offset else "Enc=?"
+            dec_str = f"Dec@{dec_offset.ovft}" if dec_offset else "Dec=?"
 
-        # Verbose details
-        if self.verbose:
-            print(f"\n--- {EMOJI['info']} Verbose Candidate Details ---")
-            for i, r in enumerate(self.results):
-                print(f"\n  --- Candidate {i + 1}: '{r.interface_name}' ---")
-                print(f"    Methods (ABE):")
-                for name, m in r.methods.items():
-                    slot = m.ovft // 8
-                    print(
-                        f"      - {name}: VTable Offset {m.ovft} (Slot ~{slot}), in '{m.defining_interface_name}'")
-                print(
-                    f"    Inheritance: {' -> '.join(iface.name for iface in reversed(r.inheritance_chain_info))}")
-                for iface in reversed(r.inheritance_chain_info):
-                    print(
-                        f"      {iface.name} (IID: {iface.iid}) - {len(iface.methods_defined)} method(s)")
-                    for m in iface.methods_defined:
-                        params = ', '.join(m.params) if m.params else 'void'
-                        print(
-                            f"        - {m.ret_type} {m.name}({params}) (oVft: {m.ovft})")
-            print("--- End Verbose Details ---")
+            print(f"{browser:<8s}CLSID={clsid}  IID={r.interface_iid}  "
+                  f"{r.interface_name:<32s}{enc_str}  {dec_str}  marshal={marshal_status}")
 
-        # Generate C++ stubs
-        if output_cpp_file:
-            self._log(
-                f"\nGenerating C++ stubs for '{primary.interface_name}'...", emoji="gear")
-            header = f"// COM Stubs for {browser}\n// Generated by COMrade ABE Analyzer\n"
-            header += f"// CLSID: {format_guid_for_cpp(primary.clsid)}\n"
-            header += f"// IID: {format_guid_for_cpp(primary.interface_iid)}\n\n"
-            content = self.generate_cpp_stubs(
-                primary.inheritance_chain_info, primary.interface_iid)
-            try:
-                with open(output_cpp_file, 'w', encoding='utf-8') as f:
-                    f.write(header + content)
-                self._log(
-                    f"C++ stubs written to: {output_cpp_file}", emoji="success")
-            except IOError as e:
-                self._log(f"Error writing stubs: {e}", emoji="failure")
+    def print_vtable_layout(self):
+        """Print formatted vtable layout for each candidate."""
+        if not self.results:
+            return
+
+        for r in self.results:
+            vtable = self.calculate_vtable_layout(r.inheritance_chain_info)
+            if not vtable:
+                continue
+
+            # Mark target methods
+            target_names = set(self.target_methods)
+
+            print(f"\n  Vtable for {r.interface_name} ({r.interface_iid}):")
+            print(f"  {'Slot':>4s}  {'x64':>6s}  {'x86':>4s}  {'Interface':<24s}  Method")
+            print(f"  {'----':>4s}  {'------':>6s}  {'----':>4s}  {'-' * 24}  {'------'}")
+
+            for slot in vtable:
+                marker = "  <--" if slot.method_name in target_names else ""
+                print(f"  {slot.slot_index:4d}  0x{slot.offset_x64:04X}  0x{slot.offset_x86:02X}  "
+                      f"{slot.defining_interface:<24s}  {slot.method_name}{marker}")
 
     def compare_interfaces(self, other_json: str) -> Dict[str, Any]:
-        """Compare current results with a previous JSON export."""
+        """Compare current results with a previous JSON export with comprehensive diffing."""
         try:
             with open(other_json, 'r', encoding='utf-8') as f:
                 other = json.load(f)
@@ -2355,13 +2491,14 @@ class ComInterfaceAnalyzer:
 
         diff = {
             "added_interfaces": [], "removed_interfaces": [],
-            "method_changes": [], "vtable_offset_changes": []
+            "vtable_offset_changes": [], "pe_changes": [],
+            "security_changes": []
         }
 
         current = {r.interface_iid.lower(): r for r in self.results}
-        other_results = {r["interface_iid"].lower(
-        ): r for r in other.get("results", [])}
+        other_results = {r["interface_iid"].lower(): r for r in other.get("results", [])}
 
+        # Added/removed interfaces
         for iid, r in current.items():
             if iid not in other_results:
                 diff["added_interfaces"].append(
@@ -2371,6 +2508,52 @@ class ComInterfaceAnalyzer:
             if iid not in current:
                 diff["removed_interfaces"].append(
                     {"name": r["interface_name"], "iid": r["interface_iid"]})
+
+        # Vtable offset changes for shared interfaces
+        for iid in current:
+            if iid not in other_results:
+                continue
+            cur_r = current[iid]
+            old_r = other_results[iid]
+            old_methods = old_r.get("methods", {})
+            for method_name, cur_m in cur_r.methods.items():
+                if method_name in old_methods:
+                    old_offset = old_methods[method_name].get("vtable_offset")
+                    if old_offset is not None and old_offset != cur_m.ovft:
+                        diff["vtable_offset_changes"].append(
+                            f"{cur_r.interface_name}.{method_name}: offset {old_offset} -> {cur_m.ovft}")
+
+        # PE info changes
+        old_pe = other.get("pe_info", {})
+        if old_pe and self.pe_info:
+            old_mits = old_pe.get("security_mitigations", {})
+            for key, label in [("aslr", "ASLR"), ("dep", "DEP"), ("cfg", "CFG"),
+                               ("high_entropy_aslr", "High Entropy ASLR")]:
+                old_val = old_mits.get(key)
+                new_val = getattr(self.pe_info, key, None)
+                if old_val is not None and new_val is not None and old_val != new_val:
+                    diff["pe_changes"].append(f"PE {label}: {old_val} -> {new_val}")
+
+            old_sig = old_pe.get("signature", {})
+            if old_sig.get("signer") != self.pe_info.signer_name:
+                diff["pe_changes"].append(
+                    f"PE signer: {old_sig.get('signer')} -> {self.pe_info.signer_name}")
+            old_arch = old_pe.get("machine_name")
+            if old_arch and old_arch != self.pe_info.machine_name:
+                diff["pe_changes"].append(
+                    f"PE architecture: {old_arch} -> {self.pe_info.machine_name}")
+
+        # Security posture changes
+        old_sec = other.get("security_info", {})
+        if old_sec and self.discovered_clsid:
+            cur_sec = self.analyze_com_security(self.discovered_clsid)
+            if old_sec.get("local_service") != cur_sec.local_service:
+                diff["security_changes"].append(
+                    f"LocalService: {old_sec.get('local_service')} -> {cur_sec.local_service}")
+            if old_sec.get("launch_permission_sddl") != cur_sec.launch_permission_sddl:
+                diff["security_changes"].append("Launch permission SDDL changed")
+            if old_sec.get("access_permission_sddl") != cur_sec.access_permission_sddl:
+                diff["security_changes"].append("Access permission SDDL changed")
 
         return diff
 
@@ -2390,21 +2573,24 @@ _________  ________      _____                    .___          _____ __________
  \______  /\_______  /\____|__  /__|  (____  /\____ |\___  > \____|__  /______  /_______  /
         \/         \/         \/           \/      \/    \/          \/       \/        \/
 
-                  by Alexander 'xaitax' Hagenah
+                  by Alexander 'xaitax' Hagenah  |  v""" + VERSION + r"""
 -------------------------------------------------------------------------------------------
     """)
 
 
-def main():
-    print_banner()
-
+def _parse_args():
+    """Parse command-line arguments."""
     examples = """
 Examples:
   %(prog)s chrome                    Analyze Chrome elevation service
   %(prog)s edge -d                   Analyze Edge with SDDL + service details
   %(prog)s brave -v -o out.json      Verbose analysis, export to JSON
+  %(prog)s avast                     Analyze Avast Secure Browser elevation service
+  %(prog)s all                       Scan all installed browsers
+  %(prog)s all --brief               One-liner per browser
   %(prog)s discover                  List all elevation services
   %(prog)s search Google             Search TypeLibs by name
+  %(prog)s chrome --vtable           Show full vtable layout
   %(prog)s chrome --compare old.json Compare with previous analysis
   %(prog)s "C:\\path\\to\\exe"         Analyze specific executable
 """
@@ -2418,7 +2604,7 @@ Examples:
 
     # Positional arguments
     parser.add_argument("target", metavar="TARGET",
-                        help="chrome|edge|brave, 'discover', 'search', or path to executable")
+                        help="chrome|edge|brave|avast|all, 'discover', 'search', or path to executable")
     parser.add_argument("pattern", nargs="?", default=None,
                         help="Search pattern (only used with 'search' command)")
 
@@ -2427,8 +2613,8 @@ Examples:
                         help="Show SDDL and service status details")
     parser.add_argument("-v", "--verbose", action="store_true",
                         help="Enable verbose output")
-    parser.add_argument("-o", "--output", metavar="FILE",
-                        help="Export results to JSON")
+    parser.add_argument("-o", "--output", metavar="FILE_OR_DIR",
+                        help="Export results to JSON (file or directory for 'all')")
     parser.add_argument("--cpp", metavar="FILE",
                         help="Generate C++ interface stubs")
     parser.add_argument("--compare", metavar="FILE",
@@ -2437,6 +2623,10 @@ Examples:
                         help="Manually specify CLSID")
     parser.add_argument("--log", metavar="FILE",
                         help="Write logs to file")
+    parser.add_argument("--brief", action="store_true",
+                        help="Compact one-line-per-interface output")
+    parser.add_argument("--vtable", action="store_true",
+                        help="Show full vtable layout for each candidate")
 
     # Advanced options (hidden from main help)
     advanced = parser.add_argument_group("advanced options")
@@ -2451,24 +2641,29 @@ Examples:
         parser.print_help(sys.stderr)
         sys.exit(1)
 
-    args = parser.parse_args()
+    return parser.parse_args(), parser
 
+
+def _check_platform():
+    """Ensure we're running on Windows."""
     if sys.platform != "win32":
         print(f"{EMOJI['failure']} This script requires Windows.")
         sys.exit(1)
 
-    print(f"{EMOJI['gear']} COM ABE Interface Analyzer Initializing...")
 
-    # Check if running as admin
+def _check_admin():
+    """Warn if not running as admin."""
     try:
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()
         if not is_admin:
-            print(
-                f"{EMOJI['warning']} Running as standard user. Service DACL checks may be incomplete.")
+            print(f"{EMOJI['warning']} Running as standard user. Service DACL checks may be incomplete.")
     except Exception:
         pass
 
-    analyzer = ComInterfaceAnalyzer(
+
+def _create_analyzer(args) -> 'ComInterfaceAnalyzer':
+    """Create analyzer instance from parsed args."""
+    return ComInterfaceAnalyzer(
         verbose=args.verbose,
         target_method_names=[m.strip() for m in args.methods.split(',')],
         expected_decrypt_params=args.decrypt_params,
@@ -2476,115 +2671,202 @@ Examples:
         log_file=args.log
     )
 
+
+def _cmd_discover(args):
+    """Execute the 'discover' command."""
+    analyzer = _create_analyzer(args)
+    print(f"\n{EMOJI['search']} Discovering all elevation services...")
+    comtypes.CoInitialize()
+    try:
+        services = analyzer.discover_elevation_services()
+        if services:
+            print(f"\n{EMOJI['success']} Found {len(services)} elevation service(s):\n")
+            for svc in services:
+                print(f"  {EMOJI['gear']} {svc.service_name}")
+                print(f"      Browser Vendor : {svc.browser_vendor}")
+                if svc.display_name:
+                    print(f"      Display Name   : {svc.display_name}")
+                if svc.executable_path:
+                    print(f"      Executable     : {svc.executable_path}")
+                if svc.start_type:
+                    print(f"      Start Type     : {svc.start_type}")
+                if svc.status:
+                    emoji = EMOJI['success'] if svc.status == "running" else EMOJI['info']
+                    pid = f" (PID: {svc.pid})" if svc.pid else ""
+                    print(f"      Status         : {emoji} {svc.status}{pid}")
+                print()
+        else:
+            print(f"{EMOJI['warning']} No elevation services found.")
+    finally:
+        comtypes.CoUninitialize()
+    print(f"{EMOJI['success']} Discovery complete.")
+
+
+def _cmd_search(args, parser):
+    """Execute the 'search' command."""
+    if not args.pattern:
+        parser.error("'search' requires a pattern. Usage: comrade_abe.py search <pattern>")
+    analyzer = _create_analyzer(args)
+    print(f"\n{EMOJI['search']} Searching TypeLibs matching '{args.pattern}'...")
+    comtypes.CoInitialize()
+    try:
+        typelibs = analyzer.search_typelibs_by_pattern(args.pattern)
+        if typelibs:
+            print(f"\n{EMOJI['success']} Found {len(typelibs)} matching TypeLib(s):\n")
+            for tl in typelibs:
+                print(f"  {EMOJI['file']} {tl.name}")
+                print(f"      TypeLib ID : {tl.typelib_id}")
+                print(f"      Version    : {tl.version}")
+                if tl.win64_path:
+                    print(f"      Win64 Path : {tl.win64_path}")
+                elif tl.win32_path:
+                    print(f"      Win32 Path : {tl.win32_path}")
+                print()
+        else:
+            print(f"{EMOJI['warning']} No TypeLibs found matching '{args.pattern}'.")
+    finally:
+        comtypes.CoUninitialize()
+    print(f"{EMOJI['success']} TypeLib search complete.")
+
+
+def _cmd_analyze(args, parser):
+    """Execute analysis for a single browser or executable path."""
+    analyzer = _create_analyzer(args)
     target_lower = args.target.lower()
-    browser_keys = ["chrome", "edge", "brave"]
+    browser_keys = list(BROWSER_SERVICES.keys())
 
-    # Command: discover
-    if target_lower == "discover":
-        print(f"\n{EMOJI['search']} Discovering all elevation services...")
-        comtypes.CoInitialize()
-        try:
-            services = analyzer.discover_elevation_services()
-            if services:
-                print(
-                    f"\n{EMOJI['success']} Found {len(services)} elevation service(s):\n")
-                for svc in services:
-                    print(f"  {EMOJI['gear']} {svc.service_name}")
-                    print(f"      Browser Vendor : {svc.browser_vendor}")
-                    if svc.display_name:
-                        print(f"      Display Name   : {svc.display_name}")
-                    if svc.executable_path:
-                        print(f"      Executable     : {svc.executable_path}")
-                    if svc.start_type:
-                        print(f"      Start Type     : {svc.start_type}")
-                    if svc.status:
-                        emoji = EMOJI['success'] if svc.status == "running" else EMOJI['info']
-                        pid = f" (PID: {svc.pid})" if svc.pid else ""
-                        print(
-                            f"      Status         : {emoji} {svc.status}{pid}")
-                    print()
-            else:
-                print(f"{EMOJI['warning']} No elevation services found.")
-        finally:
-            comtypes.CoUninitialize()
-        print(f"{EMOJI['success']} Discovery complete.")
-        sys.exit(0)
-
-    # Command: search <pattern>
-    if target_lower == "search":
-        if not args.pattern:
-            parser.error(
-                "'search' requires a pattern. Usage: comrade_abe.py search <pattern>")
-        print(
-            f"\n{EMOJI['search']} Searching TypeLibs matching '{args.pattern}'...")
-        comtypes.CoInitialize()
-        try:
-            typelibs = analyzer.search_typelibs_by_pattern(args.pattern)
-            if typelibs:
-                print(
-                    f"\n{EMOJI['success']} Found {len(typelibs)} matching TypeLib(s):\n")
-                for tl in typelibs:
-                    print(f"  {EMOJI['file']} {tl.name}")
-                    print(f"      TypeLib ID : {tl.typelib_id}")
-                    print(f"      Version    : {tl.version}")
-                    if tl.win64_path:
-                        print(f"      Win64 Path : {tl.win64_path}")
-                    elif tl.win32_path:
-                        print(f"      Win32 Path : {tl.win32_path}")
-                    print()
-            else:
-                print(
-                    f"{EMOJI['warning']} No TypeLibs found matching '{args.pattern}'.")
-        finally:
-            comtypes.CoUninitialize()
-        print(f"{EMOJI['success']} TypeLib search complete.")
-        sys.exit(0)
-
-    # Browser scan (chrome/edge/brave)
     if target_lower in browser_keys:
-        analyzer.analyze(
-            scan_mode=True, browser_key=args.target, user_clsid=args.clsid)
-    # Direct executable path
+        analyzer.analyze(scan_mode=True, browser_key=args.target, user_clsid=args.clsid)
     elif os.path.exists(args.target):
         analyzer.executable_path = args.target
         if args.clsid:
             analyzer.discovered_clsid = args.clsid
             analyzer.browser_key = "manual"
+        else:
+            path_lower = args.target.lower()
+            if "google" in path_lower and "chrome" in path_lower:
+                analyzer.browser_key = "chrome"
+            elif "microsoft" in path_lower and "edge" in path_lower:
+                analyzer.browser_key = "edge"
+            elif "brave" in path_lower:
+                analyzer.browser_key = "brave"
+            elif "avast" in path_lower:
+                analyzer.browser_key = "avast"
         analyzer.analyze(user_clsid=args.clsid)
     else:
         parser.error(
-            f"Unknown target '{args.target}'. Use chrome|edge|brave, 'discover', 'search', or a valid path.")
+            f"Unknown target '{args.target}'. Use chrome|edge|brave|avast|all, 'discover', 'search', or a valid path.")
 
-    # Print results
-    analyzer.print_results(
-        output_cpp_file=args.cpp,
-        show_sddl=args.details,
-        show_service_status=args.details
-    )
+    _output_results(analyzer, args)
 
-    # Export JSON
+
+def _cmd_all(args):
+    """Execute analysis for all installed browsers."""
+    browser_keys = list(BROWSER_SERVICES.keys())
+
+    # Determine output directory if -o points to a directory
+    output_dir = None
+    if args.output:
+        if os.path.isdir(args.output) or args.output.endswith(os.sep) or args.output.endswith('/'):
+            output_dir = args.output
+            os.makedirs(output_dir, exist_ok=True)
+
+    for browser_key in browser_keys:
+        print(f"\n{'=' * 60}")
+        print(f"  {EMOJI['gear']} Scanning: {browser_key.upper()}")
+        print(f"{'=' * 60}")
+
+        analyzer = _create_analyzer(args)
+        analyzer.analyze(scan_mode=True, browser_key=browser_key, user_clsid=args.clsid)
+
+        if args.brief:
+            analyzer.print_brief()
+        else:
+            analyzer.print_results(
+                output_cpp_file=args.cpp,
+                show_sddl=args.details,
+                show_service_status=args.details
+            )
+
+        # Export JSON per browser
+        if analyzer.results:
+            if output_dir:
+                json_path = os.path.join(output_dir, f"{browser_key}_data.json")
+                analyzer.export_to_json(json_path)
+            elif args.output and not output_dir:
+                # Single file output: only export first browser with results
+                analyzer.export_to_json(args.output)
+                args.output = None  # Prevent overwriting
+
+    print(f"\n{EMOJI['success']} All-browser scan complete.")
+
+
+def _output_results(analyzer: 'ComInterfaceAnalyzer', args):
+    """Print results, export JSON, and run comparison."""
+    if args.brief:
+        analyzer.print_brief()
+    else:
+        analyzer.print_results(
+            output_cpp_file=args.cpp,
+            show_sddl=args.details,
+            show_service_status=args.details
+        )
+
+    if args.vtable and analyzer.results:
+        analyzer.print_vtable_layout()
+
     if args.output and analyzer.results:
         analyzer.export_to_json(args.output)
 
-    # Compare with previous
     if args.compare and analyzer.results:
-        print(f"\n{EMOJI['search']} Comparing with: {args.compare}")
-        if os.path.exists(args.compare):
-            diff = analyzer.compare_interfaces(args.compare)
-            if "error" in diff:
-                print(f"  {EMOJI['failure']} Error: {diff['error']}")
-            elif not any(diff.values()):
-                print(f"  {EMOJI['success']} No changes detected.")
-            else:
-                print(f"\n  {EMOJI['warning']} Changes detected:")
-                for iface in diff.get("added_interfaces", []):
-                    print(f"    + {iface['name']} ({iface['iid']})")
-                for iface in diff.get("removed_interfaces", []):
-                    print(f"    - {iface['name']} ({iface['iid']})")
-        else:
-            print(f"  {EMOJI['failure']} File not found: {args.compare}")
+        _cmd_compare(analyzer, args.compare)
 
     print(f"\n{EMOJI['success']} Analysis complete.")
+
+
+def _cmd_compare(analyzer: 'ComInterfaceAnalyzer', compare_file: str):
+    """Run comparison against previous JSON export."""
+    print(f"\n{EMOJI['search']} Comparing with: {compare_file}")
+    if not os.path.exists(compare_file):
+        print(f"  {EMOJI['failure']} File not found: {compare_file}")
+        return
+
+    diff = analyzer.compare_interfaces(compare_file)
+    if "error" in diff:
+        print(f"  {EMOJI['failure']} Error: {diff['error']}")
+    elif not any(diff.values()):
+        print(f"  {EMOJI['success']} No changes detected.")
+    else:
+        print(f"\n  {EMOJI['warning']} Changes detected:")
+        for iface in diff.get("added_interfaces", []):
+            print(f"    + {iface['name']} ({iface['iid']})")
+        for iface in diff.get("removed_interfaces", []):
+            print(f"    - {iface['name']} ({iface['iid']})")
+        for change in diff.get("vtable_offset_changes", []):
+            print(f"    ~ {change}")
+        for change in diff.get("pe_changes", []):
+            print(f"    ~ {change}")
+        for change in diff.get("security_changes", []):
+            print(f"    ~ {change}")
+
+
+def main():
+    print_banner()
+    args, parser = _parse_args()
+    _check_platform()
+
+    print(f"{EMOJI['gear']} COM ABE Interface Analyzer Initializing...")
+    _check_admin()
+
+    target = args.target.lower()
+    if target == "discover":
+        _cmd_discover(args)
+    elif target == "search":
+        _cmd_search(args, parser)
+    elif target == "all":
+        _cmd_all(args)
+    else:
+        _cmd_analyze(args, parser)
 
 
 if __name__ == "__main__":

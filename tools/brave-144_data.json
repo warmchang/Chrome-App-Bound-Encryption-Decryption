@@ -1,21 +1,71 @@
 {
   "metadata": {
     "tool": "COMrade ABE Analyzer",
-    "version": "1.1.0",
-    "timestamp": "2026-01-24T15:43:35.697242",
-    "analysis_duration_seconds": 0.03212428092956543,
+    "version": "2.2.0",
+    "timestamp": "2026-02-09T19:50:42.412342",
+    "duration_seconds": 0.04377031326293945,
     "browser": "brave",
-    "executable_path": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\144.1.86.142\\elevation_service.exe"
+    "executable": "C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\144.1.86.148\\elevation_service.exe"
   },
   "statistics": {
-    "total_interfaces_scanned": 13,
-    "abe_capable_interfaces_found": 13,
+    "interfaces_scanned": 13,
+    "abe_capable_found": 13,
+    "coclasses_found": 0,
     "target_methods": [
       "DecryptData",
       "EncryptData"
     ]
   },
   "discovered_clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
+  "pe_info": {
+    "machine": "ARM64",
+    "machine_name": "ARM64",
+    "timestamp": "2026-02-04T07:12:25",
+    "has_typelib": true,
+    "uses_rpc": true,
+    "uses_ole": true,
+    "hardening_apis": [
+      "advapi32.dll!CheckTokenMembership (Token group membership check)",
+      "advapi32.dll!GetTokenInformation (Token/privilege inspection)",
+      "advapi32.dll!OpenProcessToken (Process token access)",
+      "kernel32.dll!GetModuleFileNameW (Path retrieval (self))",
+      "kernel32.dll!QueryFullProcessImageNameW (Full process image path)"
+    ],
+    "security_mitigations": {
+      "aslr": true,
+      "high_entropy_aslr": true,
+      "dep": true,
+      "cfg": true
+    },
+    "signature": {
+      "is_signed": true,
+      "is_valid": true,
+      "signer": "Brave Software, Inc.",
+      "error": null
+    }
+  },
+  "security_info": {
+    "appid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
+    "local_service": "BraveElevationService",
+    "runas": null,
+    "launch_permission_sddl": null,
+    "access_permission_sddl": null
+  },
+  "service_runtime": {
+    "status": "unknown",
+    "pid": null,
+    "start_type": "manual",
+    "dependencies": [
+      "RPCSS"
+    ]
+  },
+  "service_security": {
+    "service_name": "BraveElevationService",
+    "dacl_sddl": "O:SYD:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)",
+    "has_weak_permissions": false,
+    "weak_permission_details": [],
+    "query_error": null
+  },
   "results": [
     {
       "interface_name": "IElevator",
@@ -23,34 +73,107 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator",
-          "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
-        },
-        {
           "name": "IUnknown",
           "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
+        },
+        {
+          "name": "IElevator",
+          "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorChromium",
@@ -58,40 +181,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorChromium",
-          "iid": "{3218DA17-49C2-479A-8290-311DBFB86490}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorChromium",
+          "iid": "{3218DA17-49C2-479A-8290-311DBFB86490}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorChrome",
@@ -99,40 +295,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorChrome",
-          "iid": "{F396861E-0C8E-4C71-8256-2FAE6D759CE9}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorChrome",
+          "iid": "{F396861E-0C8E-4C71-8256-2FAE6D759CE9}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "oleautomation",
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorChromeBeta",
@@ -140,40 +409,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorChromeBeta",
-          "iid": "{9EBAD7AC-6E1E-4A1C-AA85-1A70CADA8D82}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorChromeBeta",
+          "iid": "{9EBAD7AC-6E1E-4A1C-AA85-1A70CADA8D82}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorChromeDev",
@@ -181,40 +523,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorChromeDev",
-          "iid": "{1E43C77B-48E6-4A4C-9DB2-C2971706C255}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorChromeDev",
+          "iid": "{1E43C77B-48E6-4A4C-9DB2-C2971706C255}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorChromeCanary",
@@ -222,40 +637,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorChromeCanary",
-          "iid": "{1DB2116F-71B7-49F0-8970-33B1DACFB072}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorChromeCanary",
+          "iid": "{1DB2116F-71B7-49F0-8970-33B1DACFB072}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevatorDevelopment",
@@ -263,40 +751,113 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevatorDevelopment",
-          "iid": "{17239BF1-A1DC-4642-846C-1BAC85F96A10}",
-          "base_interface": "IElevator",
-          "methods_count": 0
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevatorDevelopment",
+          "iid": "{17239BF1-A1DC-4642-846C-1BAC85F96A10}",
+          "base": "IElevator",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 7
     },
     {
       "interface_name": "IElevator2",
@@ -304,34 +865,136 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
+        },
+        {
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "oleautomation (broken - no TypeLib GUID)",
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
+      },
+      "vtable_slots": 9
     },
     {
       "interface_name": "IElevator2Chromium",
@@ -339,46 +1002,142 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2Chromium",
-          "iid": "{BB19A0E5-00C6-4966-94B2-5AFEC6FED93A}",
-          "base_interface": "IElevator2",
-          "methods_count": 0
-        },
-        {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
+        },
+        {
+          "name": "IElevator2Chromium",
+          "iid": "{BB19A0E5-00C6-4966-94B2-5AFEC6FED93A}",
+          "base": "IElevator2",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 9
     },
     {
       "interface_name": "IElevator2Chrome",
@@ -386,46 +1145,142 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2Chrome",
-          "iid": "{1BF5208B-295F-4992-B5F4-3A9BB6494838}",
-          "base_interface": "IElevator2",
-          "methods_count": 0
-        },
-        {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
+        },
+        {
+          "name": "IElevator2Chrome",
+          "iid": "{1BF5208B-295F-4992-B5F4-3A9BB6494838}",
+          "base": "IElevator2",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "oleautomation",
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
+      },
+      "vtable_slots": 9
     },
     {
       "interface_name": "IElevator2ChromeBeta",
@@ -433,46 +1288,142 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2ChromeBeta",
-          "iid": "{B96A14B8-D0B0-44D8-BA68-2385B2A03254}",
-          "base_interface": "IElevator2",
-          "methods_count": 0
-        },
-        {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
+        },
+        {
+          "name": "IElevator2ChromeBeta",
+          "iid": "{B96A14B8-D0B0-44D8-BA68-2385B2A03254}",
+          "base": "IElevator2",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 9
     },
     {
       "interface_name": "IElevator2ChromeDev",
@@ -480,46 +1431,142 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2ChromeDev",
-          "iid": "{3FEFA48E-C8BF-461F-AED6-63F658CC850A}",
-          "base_interface": "IElevator2",
-          "methods_count": 0
-        },
-        {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
+        },
+        {
+          "name": "IElevator2ChromeDev",
+          "iid": "{3FEFA48E-C8BF-461F-AED6-63F658CC850A}",
+          "base": "IElevator2",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 9
     },
     {
       "interface_name": "IElevator2ChromeCanary",
@@ -527,46 +1574,142 @@
       "clsid": "{576B31AF-6369-4B6B-8560-E4B203A97A8B}",
       "methods": {
         "EncryptData": {
-          "name": "EncryptData",
           "vtable_offset": 32,
           "memid": 1610678273,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         },
         "DecryptData": {
-          "name": "DecryptData",
           "vtable_offset": 40,
           "memid": 1610678274,
-          "defining_interface": "IElevator",
-          "defining_interface_iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}"
+          "defining_interface": "IElevator"
         }
       },
       "inheritance_chain": [
         {
-          "name": "IElevator2ChromeCanary",
-          "iid": "{FF672E9F-0994-4322-81E5-3A5A9746140A}",
-          "base_interface": "IElevator2",
-          "methods_count": 0
-        },
-        {
-          "name": "IElevator2",
-          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
-          "base_interface": "IElevator",
-          "methods_count": 2
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
         },
         {
           "name": "IElevator",
           "iid": "{5A9A9462-2FA1-4FEB-B7F2-DF3D19134463}",
-          "base_interface": "IUnknown",
-          "methods_count": 4
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            },
+            {
+              "name": "InstallVPNServices",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 48,
+              "memid": 1610678275
+            }
+          ]
         },
         {
-          "name": "IUnknown",
-          "iid": "{00000000-0000-0000-C000-000000000046}",
-          "base_interface": "IUnknown",
-          "methods_count": 3
+          "name": "IElevator2",
+          "iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
+          "base": "IElevator",
+          "methods": [
+            {
+              "name": "RunIsolatedChrome",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] ULONG flags",
+                "[in] LPWSTR command_line",
+                "[out] BSTR* log",
+                "[out] ULONGLONG* proc_handle",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743808
+            },
+            {
+              "name": "AcceptInvitation",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR server_name"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743809
+            }
+          ]
+        },
+        {
+          "name": "IElevator2ChromeCanary",
+          "iid": "{FF672E9F-0994-4322-81E5-3A5A9746140A}",
+          "base": "IElevator2",
+          "methods": []
         }
-      ]
+      ],
+      "proxy_stub": {
+        "type": "not registered",
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
+      },
+      "vtable_slots": 9
     }
   ]
 }

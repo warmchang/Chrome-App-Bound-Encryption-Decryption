@@ -1,15 +1,15 @@
 {
   "metadata": {
     "tool": "COMrade ABE Analyzer",
-    "version": "2.0.0",
-    "timestamp": "2026-01-28T08:55:14.440858",
-    "duration_seconds": 0.014183759689331055,
+    "version": "2.2.0",
+    "timestamp": "2026-02-09T19:50:20.324248",
+    "duration_seconds": 0.030132293701171875,
     "browser": "edge",
-    "executable": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\144.0.3719.92\\elevation_service.exe"
+    "executable": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\145.0.3800.36\\elevation_service.exe"
   },
   "statistics": {
     "interfaces_scanned": 12,
-    "abe_capable_found": 10,
+    "abe_capable_found": 11,
     "coclasses_found": 0,
     "target_methods": [
       "DecryptData",
@@ -20,14 +20,26 @@
   "pe_info": {
     "machine": "ARM64",
     "machine_name": "ARM64",
-    "timestamp": "2026-01-23T09:55:37",
+    "timestamp": "2026-02-01T19:36:35",
     "has_typelib": true,
     "uses_rpc": true,
     "uses_ole": true,
     "hardening_apis": [
       "kernel32.dll!GetModuleFileNameW (Path retrieval (self))",
       "kernel32.dll!QueryFullProcessImageNameW (Full process image path)"
-    ]
+    ],
+    "security_mitigations": {
+      "aslr": true,
+      "high_entropy_aslr": true,
+      "dep": true,
+      "cfg": true
+    },
+    "signature": {
+      "is_signed": true,
+      "is_valid": true,
+      "signer": "Microsoft Code Signing PCA 2011",
+      "error": null
+    }
   },
   "security_info": {
     "appid": "{1FCBE96C-1697-43AF-9140-2897C7C69767}",
@@ -39,10 +51,158 @@
   "service_runtime": {
     "status": "unknown",
     "pid": null,
-    "start_type": "unknown",
-    "dependencies": []
+    "start_type": "manual",
+    "dependencies": [
+      "RPCSS"
+    ]
+  },
+  "service_security": {
+    "service_name": "MicrosoftEdgeElevationService",
+    "dacl_sddl": "O:SYD:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)",
+    "has_weak_permissions": false,
+    "weak_permission_details": [],
+    "query_error": null
   },
   "results": [
+    {
+      "interface_name": "IElevator",
+      "interface_iid": "{A949CB4E-C4F9-44C4-B213-6BF8AA9AC69C}",
+      "clsid": "{1FCBE96C-1697-43AF-9140-2897C7C69767}",
+      "methods": {
+        "EncryptData": {
+          "vtable_offset": 56,
+          "memid": 1610743809,
+          "defining_interface": "IElevator"
+        },
+        "DecryptData": {
+          "vtable_offset": 64,
+          "memid": 1610743810,
+          "defining_interface": "IElevator"
+        }
+      },
+      "inheritance_chain": [
+        {
+          "name": "IUnknown",
+          "iid": "{00000000-0000-0000-C000-000000000046}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "QueryInterface",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
+                "[out] void** ppvObj"
+              ],
+              "vtable_offset": 0,
+              "memid": 1610612736
+            },
+            {
+              "name": "AddRef",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 8,
+              "memid": 1610612737
+            },
+            {
+              "name": "Release",
+              "return_type": "ULONG",
+              "params": [],
+              "vtable_offset": 16,
+              "memid": 1610612738
+            }
+          ]
+        },
+        {
+          "name": "IElevatorEdgeBase",
+          "iid": "{E12B779C-CDB8-4F19-95A0-9CA19B31A8F6}",
+          "base": "IUnknown",
+          "methods": [
+            {
+              "name": "ReservedFunction1",
+              "return_type": "HRESULT",
+              "params": [],
+              "vtable_offset": 24,
+              "memid": 1610678272
+            },
+            {
+              "name": "LaunchUpdateCmdElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR cmd_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 32,
+              "memid": 1610678273
+            },
+            {
+              "name": "LaunchUpdateCmdElevatedAndWait",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR cmd_id",
+                "[in] ULONG wait_timeout",
+                "[out] ULONG* exit_code"
+              ],
+              "vtable_offset": 40,
+              "memid": 1610678274
+            }
+          ]
+        },
+        {
+          "name": "IElevator",
+          "iid": "{A949CB4E-C4F9-44C4-B213-6BF8AA9AC69C}",
+          "base": "IElevatorEdgeBase",
+          "methods": [
+            {
+              "name": "RunRecoveryCRXElevated",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] LPWSTR crx_path",
+                "[in] LPWSTR browser_appid",
+                "[in] LPWSTR browser_version",
+                "[in] LPWSTR session_id",
+                "[in] ULONG caller_proc_id",
+                "[out] ULONGLONG* proc_handle"
+              ],
+              "vtable_offset": 48,
+              "memid": 1610743808
+            },
+            {
+              "name": "EncryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] enum ProtectionLevel protection_level",
+                "[in] BSTR plaintext",
+                "[out] BSTR* ciphertext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 56,
+              "memid": 1610743809
+            },
+            {
+              "name": "DecryptData",
+              "return_type": "HRESULT",
+              "params": [
+                "[in] BSTR ciphertext",
+                "[out] BSTR* plaintext",
+                "[out] ULONG* last_error"
+              ],
+              "vtable_offset": 64,
+              "memid": 1610743810
+            }
+          ]
+        }
+      ],
+      "proxy_stub": {
+        "type": "oleautomation (broken - no TypeLib GUID)",
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
+      },
+      "vtable_slots": 9
+    },
     {
       "interface_name": "IElevator2",
       "interface_iid": "{8F7B6792-784D-4047-845D-1782EFBEF205}",
@@ -69,7 +229,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -204,8 +364,10 @@
         }
       ],
       "proxy_stub": {
-        "type": "oleautomation",
-        "registered": true
+        "type": "oleautomation (broken - no TypeLib GUID)",
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
       },
       "vtable_slots": 11
     },
@@ -235,7 +397,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -348,7 +510,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -378,7 +542,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -491,7 +655,9 @@
       ],
       "proxy_stub": {
         "type": "oleautomation",
-        "registered": true
+        "registered": true,
+        "dll_path": "C:\\Windows\\System32\\oleaut32.dll",
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -521,7 +687,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -634,7 +800,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -664,7 +832,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -777,7 +945,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -807,7 +977,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -920,7 +1090,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -950,7 +1122,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -1063,7 +1235,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -1093,7 +1267,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -1206,7 +1380,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -1236,7 +1412,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -1349,7 +1525,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     },
@@ -1379,7 +1557,7 @@
               "name": "QueryInterface",
               "return_type": "HRESULT",
               "params": [
-                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; VT_0x1C Data4; }* riid",
+                "[in] struct GUID { ULONG Data1; USHORT Data2; USHORT Data3; CARRAY Data4; }* riid",
                 "[out] void** ppvObj"
               ],
               "vtable_offset": 0,
@@ -1492,7 +1670,9 @@
       ],
       "proxy_stub": {
         "type": "not registered",
-        "registered": false
+        "registered": false,
+        "dll_path": null,
+        "dll_security": null
       },
       "vtable_slots": 9
     }
